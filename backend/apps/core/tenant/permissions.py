@@ -72,7 +72,8 @@ class HasTenantAccess(BasePermission):
             tenant_id=tenant_id,
             is_active=True
         ).select_related(
-            "tenant"
+            "tenant",
+            "role",
         ).first()
 
         if not membership:
@@ -82,6 +83,7 @@ class HasTenantAccess(BasePermission):
 
 
         request.tenant = membership.tenant
-
+        request.tenant_membership = membership
+        request.role = membership.role
 
         return True

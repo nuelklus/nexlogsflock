@@ -15,42 +15,61 @@ from .serializers import (
     EmailVerificationSerializer,
     PasswordResetRequestSerializer,
     SetNewPasswordSerializer,
-    UserRegistrationSerializer,
+    OwnerRegistrationSerializer,
 )
-
 from .utils import (
     send_verification_email,
     send_password_reset_email,
 )
-
 from apps.core.tenant.models import Tenant, TenantUser, TenantRole
 from apps.core.tenant.permissions import HasTenantAccess
+from .serializers import OrganizationSerializer
 
 
 User = get_user_model()
 
-
-
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+# start
+class OwnerRegistrationView(generics.CreateAPIView):
+    """
+    Public farm-owner onboarding endpoint.
 
+    POST /api/auth/register/
+    """
 
-class RegisterUserView(generics.CreateAPIView):
-
-    queryset = User.objects.all()
-
-    serializer_class = UserRegistrationSerializer
-
+    serializer_class = OwnerRegistrationSerializer
     permission_classes = [AllowAny]
 
+    authentication_classes = []
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
 
         user = serializer.save()
 
-        send_verification_email(user)
-
+        return Response(
+            {
+                "message": (
+                    "Farm account created successfully."
+                ),
+                "user": {
+                    "id": str(user.id),
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+# end
 
 class VerifyEmailView(APIView):
 
@@ -123,8 +142,6 @@ class VerifyEmailView(APIView):
             status=status.HTTP_200_OK
         )
 
-
-
 class RequestPasswordResetEmailView(APIView):
 
     permission_classes = [AllowAny]
@@ -159,8 +176,6 @@ class RequestPasswordResetEmailView(APIView):
             },
             status=status.HTTP_200_OK
         )
-
-
 
 class SetNewPasswordView(APIView):
 
@@ -237,8 +252,6 @@ class SetNewPasswordView(APIView):
             status=status.HTTP_200_OK
         )
 
-
-
 class ChangePasswordView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -272,8 +285,6 @@ class ChangePasswordView(APIView):
             },
             status=status.HTTP_200_OK
         )
-
-
 
 class LogoutView(APIView):
 
@@ -327,3 +338,34 @@ class TestAuthView(APIView):
                 "tenant_id": str(tenant.id) if tenant else None,
             }
         )
+        
+class OrganizationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        memberships = (
+            TenantUser.objects
+            .filter(
+                user=request.user,
+                is_active=True,
+                tenant__is_active=True,
+            )
+            .select_related("tenant", "role")
+            .order_by("tenant__name")
+        )
+
+        organizations = [
+            membership.tenant
+            for membership in memberships
+        ]
+
+        serializer = OrganizationSerializer(
+            organizations,
+            many=True,
+            context={"request": request},
+        )
+
+        return Response({
+            "organizations": serializer.data,
+            "organization_count": len(organizations),
+        })

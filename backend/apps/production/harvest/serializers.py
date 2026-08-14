@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.db.models import Sum
 from rest_framework import serializers
 
 from .models import Harvest
@@ -15,6 +18,7 @@ class HarvestSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    birds_available = serializers.SerializerMethodField()
 
     class Meta:
 
@@ -33,6 +37,9 @@ class HarvestSerializer(serializers.ModelSerializer):
             "harvest_date",
 
             "birds_harvested",
+            "birds_available",
+
+            "status",
 
             "average_weight",
 
@@ -56,6 +63,8 @@ class HarvestSerializer(serializers.ModelSerializer):
 
             "branch_name",
             "batch_number",
+            "birds_available",
+            "status",
 
             "total_weight",
 
@@ -64,6 +73,14 @@ class HarvestSerializer(serializers.ModelSerializer):
 
         ]
 
+    def get_birds_available(self, obj):
+        sold = (
+            obj.invoice_items
+            .filter(is_active=True)
+            .aggregate(total=Sum("quantity"))["total"]
+            or Decimal("0")
+        )
+        return float(Decimal(str(obj.birds_harvested)) - sold)
 
     def validate(self, attrs):
 

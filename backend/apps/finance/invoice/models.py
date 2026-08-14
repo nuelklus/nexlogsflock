@@ -1,13 +1,20 @@
-from decimal import Decimal
-from django.conf import settings
-from django.db import models, transaction
 from decimal import Decimal, ROUND_HALF_UP
-from apps.core.tenant.models import TenantBaseModel
-from apps.livestock.purchase.models import Customer
-from apps.production.harvest.models import Harvest
-from apps.inventory.meat.models import MeatInventory
-from apps.inventory.egg.models import EggInventory
 from django.core.exceptions import ValidationError
+from django.db import models, transaction
+
+from apps.core.tenant.models import TenantBaseModel
+from apps.inventory.egg.models import EggInventory
+from apps.inventory.egg.services import (
+    EGG_SELLING_UNIT_CRATE,
+    EGG_SELLING_UNIT_PIECE,
+    convert_egg_sales_quantity_to_pieces,
+    normalize_egg_selling_unit,
+    quantize_egg_quantity,
+)
+from apps.inventory.meat.models import MeatInventory
+from apps.livestock.purchase.models import Customer
+from apps.organization.branch.models import Branch
+from apps.production.harvest.models import Harvest
 
 
 class InvoiceSequence(TenantBaseModel):
@@ -41,7 +48,12 @@ class InvoiceSequence(TenantBaseModel):
         )
 
 
-
+PAYMENT_STATUS_CHOICES = [
+    ("unpaid", "Unpaid"),
+    ("partially_paid", "Partially Paid"),
+    ("paid", "Paid"),
+    ("overdue", "Overdue"),
+]
 
 
 class Invoice(TenantBaseModel):
@@ -53,16 +65,44 @@ class Invoice(TenantBaseModel):
         blank=True,
         related_name="invoices",
     )
+
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoices",
+    )
+
     invoice_no = models.CharField(
         max_length=100,
         editable=False,
     )
 
+    invoice_date = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    due_date = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    notes = models.TextField(
+        blank=True,
+    )
 
     total = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=Decimal("0.00"),
+    )
+
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
+        default="unpaid",
     )
 
 
@@ -92,6 +132,14 @@ class Invoice(TenantBaseModel):
                     "invoice_no",
                 ],
                 name="idx_invoice_tenant_no",
+            ),
+
+            models.Index(
+                fields=[
+                    "tenant",
+                    "payment_status",
+                ],
+                name="idx_invoice_tenant_status",
             ),
 
         ]
@@ -142,6 +190,37 @@ class Invoice(TenantBaseModel):
 
         super().save(*args, **kwargs)
 
+
+    def update_payment_status(self):
+        """
+        Recalculate payment_status from actual payment records.
+        Call this whenever a Payment is added/removed.
+        Must be called inside an atomic block that already locked this invoice.
+        """
+        from django.db.models import Sum
+        from django.utils import timezone
+
+        amount_paid = (
+            self.payments
+            .filter(is_active=True)
+            .aggregate(total=Sum("amount"))["total"]
+            or Decimal("0.00")
+        )
+
+        if amount_paid >= self.total:
+            status = "paid"
+        elif amount_paid > Decimal("0.00"):
+            status = "partially_paid"
+        elif (
+            self.due_date
+            and self.due_date < timezone.now().date()
+        ):
+            status = "overdue"
+        else:
+            status = "unpaid"
+
+        self.payment_status = status
+        self.save(update_fields=["payment_status", "updated_at"])
 
 
     def __str__(self):
@@ -200,11 +279,19 @@ class InvoiceItem(TenantBaseModel):
         choices=[
             ("bird", "Bird"),
             ("kg", "Kilogram"),
+            ("piece", "Piece"),
+            ("crate", "Crate"),
             ("egg", "Egg"),
             ("tray", "Tray"),
-            ("piece", "Piece"),
         ],
         default="bird",
+    )
+
+    stock_quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        editable=False,
+        default=Decimal("0.00"),
     )
 
 
@@ -220,6 +307,7 @@ class InvoiceItem(TenantBaseModel):
         editable=False,
         default=Decimal("0.00"),
     )
+
     class Meta:
         db_table = "finance_invoice_item"
 
@@ -248,24 +336,35 @@ class InvoiceItem(TenantBaseModel):
 
     def save(self, *args, **kwargs):
 
-        if self.harvest:
+        if self.harvest and not self.quantity:
 
             self.quantity = Decimal(
                 self.harvest.birds_harvested
             )
 
+        if self.harvest:
+
             self.unit = "bird"
+            self.stock_quantity = self.quantity
 
 
         elif self.egg_inventory:
-
-            self.unit = "egg"
+            self.unit = normalize_egg_selling_unit(
+                self.unit or EGG_SELLING_UNIT_PIECE
+            )
+            self.stock_quantity = convert_egg_sales_quantity_to_pieces(
+                self.quantity,
+                self.unit,
+            )
 
 
         elif self.meat_inventory:
 
             self.unit = "kg"
+            self.stock_quantity = self.quantity
 
+        if not self.stock_quantity:
+            self.stock_quantity = quantize_egg_quantity(self.quantity)
 
         self.total = (
             self.quantity *

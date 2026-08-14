@@ -1,170 +1,171 @@
 from decimal import Decimal
 
-from apps.inventory.egg.models import EggInventory
+from apps.inventory.egg.models import EggInventory, EggStockMovement
+from apps.inventory.egg.services import apply_inventory_delta
 
+
+PRODUCTION_GRADE_FIELD_MAP = {
+    EggInventory.GRADE_LARGE: "large_eggs",
+    EggInventory.GRADE_MEDIUM: "medium_eggs",
+    EggInventory.GRADE_SMALL: "small_eggs",
+    EggInventory.GRADE_PULLET: "pullet_eggs",
+    EggInventory.GRADE_UNSORTED: "unsorted_eggs",
+}
+
+LEGACY_UNSORTED_FIELDS = (
+    "good_eggs",
+    "dirty_eggs",
+    "double_yolk_eggs",
+)
+
+
+def get_inventory_grade_quantities(production):
+    grade_quantities = {
+        grade: Decimal(
+            getattr(production, field_name, 0) or 0
+        )
+        for grade, field_name in PRODUCTION_GRADE_FIELD_MAP.items()
+    }
+
+    legacy_unsorted_total = sum(
+        Decimal(getattr(production, field_name, 0) or 0)
+        for field_name in LEGACY_UNSORTED_FIELDS
+    )
+
+    grade_quantities[EggInventory.GRADE_UNSORTED] += (
+        legacy_unsorted_total
+    )
+
+    return grade_quantities
 
 
 def add_egg_to_inventory(
     production,
+    *,
+    user=None,
 ):
+    inventories = []
 
-    total_collected = (
-        Decimal(production.good_eggs)
-        +
-        Decimal(production.dirty_eggs)
-        +
-        Decimal(production.small_eggs)
-        +
-        Decimal(production.double_yolk_eggs)
-    )
+    for grade, quantity in get_inventory_grade_quantities(
+        production
+    ).items():
+        if quantity <= 0:
+            continue
 
+        inventories.append(
+            apply_inventory_delta(
+                tenant=production.tenant,
+                branch=production.branch,
+                grade=grade,
+                quantity_delta=quantity,
+                movement_type=EggStockMovement.MOVEMENT_PRODUCTION,
+                reference_type="egg_production",
+                reference_id=production.id,
+                movement_date=production.production_date,
+                user=user,
+                notes="Egg production recorded.",
+            )
+        )
 
-    inventory, created = EggInventory.objects.get_or_create(
+    return inventories
 
-        tenant=production.tenant,
-
-        branch=production.branch,
-
-        is_active=True,
-
-        defaults={
-
-            "quantity": Decimal("0.00"),
-
-            "available_quantity": Decimal("0.00"),
-
-            "unit": "egg",
-
-            "grade": "mixed",
-
-            "collection_start_date":
-                production.production_date,
-
-            "collection_end_date":
-                production.production_date,
-
-        },
-
-    )
-
-
-    inventory.quantity += total_collected
-
-    inventory.available_quantity += total_collected
-
-
-    inventory.collection_end_date = (
-        production.production_date
-    )
-
-
-    inventory.save(
-        update_fields=[
-            "quantity",
-            "available_quantity",
-            "collection_end_date",
-            "updated_at",
-        ]
-    )
-
-
-    return inventory
-
-def calculate_total_eggs(production):
-
-    return (
-
-        Decimal(production.good_eggs)
-
-        +
-
-        Decimal(production.dirty_eggs)
-
-        +
-
-        Decimal(production.small_eggs)
-
-        +
-
-        Decimal(production.double_yolk_eggs)
-
-    )
 
 def update_egg_inventory(
     old_production,
     new_production,
+    *,
+    user=None,
 ):
-
-
-    old_total = calculate_total_eggs(
+    old_quantities = get_inventory_grade_quantities(
         old_production
     )
-
-
-    new_total = calculate_total_eggs(
+    new_quantities = get_inventory_grade_quantities(
         new_production
     )
 
+    old_branch_id = old_production.branch_id
+    new_branch_id = new_production.branch_id
 
-    difference = new_total - old_total
+    if old_branch_id != new_branch_id:
+        for grade, quantity in old_quantities.items():
+            if quantity <= 0:
+                continue
 
+            apply_inventory_delta(
+                tenant=old_production.tenant,
+                branch=old_production.branch,
+                grade=grade,
+                quantity_delta=-quantity,
+                movement_type=EggStockMovement.MOVEMENT_PRODUCTION_REVERSAL,
+                reference_type="egg_production",
+                reference_id=new_production.id,
+                movement_date=old_production.production_date,
+                user=user,
+                notes="Egg production moved from another branch.",
+            )
 
-    if difference == 0:
+        for grade, quantity in new_quantities.items():
+            if quantity <= 0:
+                continue
+
+            apply_inventory_delta(
+                tenant=new_production.tenant,
+                branch=new_production.branch,
+                grade=grade,
+                quantity_delta=quantity,
+                movement_type=EggStockMovement.MOVEMENT_PRODUCTION,
+                reference_type="egg_production",
+                reference_id=new_production.id,
+                movement_date=new_production.production_date,
+                user=user,
+                notes="Updated egg production applied.",
+            )
         return
 
+    for grade in PRODUCTION_GRADE_FIELD_MAP.keys():
+        difference = new_quantities[grade] - old_quantities[grade]
 
-    inventory = EggInventory.objects.get(
+        if difference == 0:
+            continue
 
-        tenant=new_production.tenant,
+        apply_inventory_delta(
+            tenant=new_production.tenant,
+            branch=new_production.branch,
+            grade=grade,
+            quantity_delta=difference,
+            movement_type=(
+                EggStockMovement.MOVEMENT_PRODUCTION
+                if difference > 0
+                else EggStockMovement.MOVEMENT_PRODUCTION_REVERSAL
+            ),
+            reference_type="egg_production",
+            reference_id=new_production.id,
+            movement_date=new_production.production_date,
+            user=user,
+            notes="Egg production updated.",
+        )
 
-        branch=new_production.branch,
 
-        is_active=True,
-
-    )
-
-
-    inventory.quantity += difference
-
-
-    inventory.available_quantity += difference
-
-
-    inventory.save(
-        update_fields=[
-            "quantity",
-            "available_quantity",
-            "updated_at",
-        ]
-    )
-
-def remove_egg_from_inventory(production):
-
-    total_collected = calculate_total_eggs(
+def remove_egg_from_inventory(
+    production,
+    *,
+    user=None,
+):
+    for grade, quantity in get_inventory_grade_quantities(
         production
-    )
+    ).items():
+        if quantity <= 0:
+            continue
 
-
-    inventory = EggInventory.objects.get(
-
-        tenant=production.tenant,
-
-        branch=production.branch,
-
-        is_active=True,
-
-    )
-
-
-    inventory.quantity -= total_collected
-
-    inventory.available_quantity -= total_collected
-
-
-    inventory.save(
-        update_fields=[
-            "quantity",
-            "available_quantity",
-            "updated_at",
-        ]
-    )
+        apply_inventory_delta(
+            tenant=production.tenant,
+            branch=production.branch,
+            grade=grade,
+            quantity_delta=-quantity,
+            movement_type=EggStockMovement.MOVEMENT_PRODUCTION_REVERSAL,
+            reference_type="egg_production",
+            reference_id=production.id,
+            movement_date=production.production_date,
+            user=user,
+            notes="Egg production deleted.",
+        )

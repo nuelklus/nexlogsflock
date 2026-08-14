@@ -6,7 +6,8 @@ from rest_framework_simplejwt.views import (
 
 from .views import (
     CustomTokenObtainPairView,
-    RegisterUserView,
+    OrganizationListView,
+    OwnerRegistrationView,
     VerifyEmailView,
     RequestPasswordResetEmailView,
     SetNewPasswordView,
@@ -24,10 +25,15 @@ urlpatterns = [
     # =========================
     # User Registration
     # =========================
+    # path(
+    #     "register/",
+    #     RegisterUserView.as_view(),
+    #     name="register",
+    # ),
     path(
-        "register/",
-        RegisterUserView.as_view(),
-        name="register",
+        "OwnerRegister/",
+        OwnerRegistrationView.as_view(),
+        name="owner_register",
     ),
 
 
@@ -101,5 +107,11 @@ urlpatterns = [
         "test/",
         TestAuthView.as_view(),
         name="test-auth"
+    ),
+    
+     path(
+        "organizations/",
+        OrganizationListView.as_view(),
+        name="organizations",
     ),
 ]

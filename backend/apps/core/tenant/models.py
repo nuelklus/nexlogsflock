@@ -1,17 +1,9 @@
 import uuid
-
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-
 from ..users.models import User
 
-
 class Tenant(models.Model):
-    """
-    Represents a company/business account in the SaaS system.
-    Each tenant owns its own data.
-    """
-
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -45,9 +37,10 @@ class Tenant(models.Model):
     )
 
     # Branding / White label
-    logo = models.URLField(
+    logo = models.ImageField(
+        upload_to="organizations/logos/",
         null=True,
-        blank=True
+        blank=True,
     )
 
     primary_color = models.CharField(
@@ -129,10 +122,10 @@ class TenantUser(models.Model):
         related_name="memberships"
     )
 
-    role = models.CharField(
-        max_length=50,
-        choices=TenantRole.choices,
-        default=TenantRole.STAFF
+    role = models.ForeignKey(
+        "core_authtntuser.Role",
+        on_delete=models.PROTECT,
+        related_name="tenant_memberships",
     )
 
     is_active = models.BooleanField(

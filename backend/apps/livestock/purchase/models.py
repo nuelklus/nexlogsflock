@@ -3,7 +3,7 @@ from apps.livestock.breed.models import Breed
 from apps.organization.branch.models import Branch
 from django.db import models
 from apps.feed.feed_type.models import FeedType
-
+# from apps.livestock.batch.models import BirdBatch   
 
 
 class Supplier(TenantBaseModel):
@@ -39,6 +39,13 @@ class Customer(TenantBaseModel):
 
 
 class ChickPurchase(TenantBaseModel):
+    batch = models.OneToOneField(
+        'livestock_batch.BirdBatch',
+        on_delete=models.PROTECT,
+        related_name="chick_purchase",
+        null=True,
+        blank=True,
+    )
 
     supplier = models.ForeignKey(
         Supplier,

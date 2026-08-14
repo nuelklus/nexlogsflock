@@ -28,6 +28,14 @@ class EggProduction(TenantBaseModel):
 
     production_date = models.DateField()
 
+    large_eggs = models.PositiveIntegerField(
+        default=0,
+    )
+
+    medium_eggs = models.PositiveIntegerField(
+        default=0,
+    )
+
     good_eggs = models.PositiveIntegerField(
         default=0,
     )
@@ -45,6 +53,14 @@ class EggProduction(TenantBaseModel):
     )
 
     small_eggs = models.PositiveIntegerField(
+        default=0,
+    )
+
+    pullet_eggs = models.PositiveIntegerField(
+        default=0,
+    )
+
+    unsorted_eggs = models.PositiveIntegerField(
         default=0,
     )
 
@@ -109,12 +125,29 @@ class EggProduction(TenantBaseModel):
     def total_eggs(self):
 
         return (
-            self.good_eggs
-            + self.cracked_eggs
-            + self.broken_eggs
-            + self.dirty_eggs
+            self.large_eggs
+            + self.medium_eggs
             + self.small_eggs
+            + self.pullet_eggs
+            + self.unsorted_eggs
+            + self.good_eggs
+            + self.dirty_eggs
             + self.double_yolk_eggs
+        )
+
+    @property
+    def legacy_rejected_eggs(self):
+        return (
+            self.cracked_eggs
+            + self.broken_eggs
+        )
+
+
+    @property
+    def total_recorded_eggs(self):
+        return (
+            self.total_eggs
+            + self.legacy_rejected_eggs
         )
 
 

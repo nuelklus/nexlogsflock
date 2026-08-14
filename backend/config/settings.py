@@ -4,6 +4,7 @@ Multi-tenant architecture on PostgreSQL.
 """
 
 from pathlib import Path
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -87,6 +88,8 @@ ROOT_URLCONF = "config.urls"
 FRONTEND_URL = "http://localhost:3000"  # Development
 # FRONTEND_URL = "https://app.yourdomain.com"  # Production
 
+EGG_CRATE_CAPACITY = 30
+
 
 # Email Configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
@@ -144,6 +147,8 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -159,4 +164,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
 CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    *default_headers,
+    "x-tenant-id",
+]

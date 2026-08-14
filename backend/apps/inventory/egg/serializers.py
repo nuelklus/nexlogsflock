@@ -1,6 +1,9 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import EggInventory
+from .services import get_egg_crate_capacity, quantize_egg_quantity
 
 
 class EggInventorySerializer(serializers.ModelSerializer):
@@ -32,6 +35,9 @@ class EggInventorySerializer(serializers.ModelSerializer):
         allow_null=True,
     )
 
+    crates = serializers.SerializerMethodField()
+    available_crates = serializers.SerializerMethodField()
+    crate_capacity = serializers.SerializerMethodField()
 
     class Meta:
 
@@ -49,6 +55,9 @@ class EggInventorySerializer(serializers.ModelSerializer):
 
             "quantity",
             "available_quantity",
+            "crates",
+            "available_crates",
+            "crate_capacity",
 
             "unit",
             "grade",
@@ -74,6 +83,9 @@ class EggInventorySerializer(serializers.ModelSerializer):
 
             "tenant_id",
             "tenant_name",
+            "crates",
+            "available_crates",
+            "crate_capacity",
 
             "created_by_email",
             "updated_by_email",
@@ -82,6 +94,23 @@ class EggInventorySerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    def get_crates(self, obj):
+        return str(
+            quantize_egg_quantity(
+                Decimal(obj.quantity) / get_egg_crate_capacity()
+            )
+        )
+
+    def get_available_crates(self, obj):
+        return str(
+            quantize_egg_quantity(
+                Decimal(obj.available_quantity)
+                / get_egg_crate_capacity()
+            )
+        )
+
+    def get_crate_capacity(self, obj):
+        return str(get_egg_crate_capacity())
 
     def validate(self, attrs):
 
@@ -120,6 +149,5 @@ class EggInventorySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Available quantity cannot exceed quantity."
             )
-
 
         return attrs
