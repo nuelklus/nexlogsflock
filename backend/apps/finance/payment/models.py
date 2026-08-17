@@ -17,12 +17,27 @@ PAYMENT_METHOD_CHOICES = [
 ]
 
 
+class PaymentPurpose(models.TextChoices):
+    INVOICE_PAYMENT = "invoice_payment", "Invoice Payment"
+    EXPENSE_PAYMENT = "expense_payment", "Expense Payment"
+    SUPPLIER_PAYMENT = "supplier_payment", "Supplier Payment"
+    OTHER = "other", "Other"
+
+
 class Payment(TenantBaseModel):
 
     invoice = models.ForeignKey(
         Invoice,
         on_delete=models.CASCADE,
         related_name="payments",
+        null=True,
+        blank=True,
+    )
+
+    payment_purpose = models.CharField(
+        max_length=30,
+        choices=PaymentPurpose.choices,
+        default=PaymentPurpose.INVOICE_PAYMENT,
     )
 
     amount = models.DecimalField(
@@ -61,7 +76,12 @@ class Payment(TenantBaseModel):
                 fields=["tenant", "date"],
                 name="idx_payment_tenant_date",
             ),
+            models.Index(
+                fields=["tenant", "payment_purpose"],
+                name="idx_payment_tenant_purpose",
+            ),
         ]
 
     def __str__(self):
-        return f"Payment {self.amount} – {self.invoice}"
+        invoice_label = self.invoice.invoice_no if self.invoice else "General Payment"
+        return f"Payment {self.amount} – {invoice_label}"

@@ -32,16 +32,19 @@ class HouseViewSet(ModelViewSet):
 
             return House.objects.none()
 
-
-        return House.objects.filter(
+        qs = House.objects.filter(
             tenant=self.request.tenant,
             is_active=True,
         ).select_related(
             "tenant",
             "branch",
-        ).order_by(
-            "name"
         )
+
+        branch_id = self.request.query_params.get("branch_id") or self.request.query_params.get("branch")
+        if branch_id:
+            qs = qs.filter(branch_id=branch_id)
+
+        return qs.order_by("name")
 
 
 

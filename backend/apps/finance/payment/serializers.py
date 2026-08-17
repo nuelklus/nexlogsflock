@@ -5,7 +5,7 @@ from django.db.models import Sum
 
 from rest_framework import serializers
 
-from .models import Payment, PAYMENT_METHOD_CHOICES
+from .models import Payment, PAYMENT_METHOD_CHOICES, PaymentPurpose
 from apps.finance.invoice.models import Invoice
 
 
@@ -14,6 +14,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     invoice_no = serializers.CharField(
         source="invoice.invoice_no",
         read_only=True,
+        allow_null=True,
     )
     customer_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
@@ -22,8 +23,10 @@ class PaymentSerializer(serializers.ModelSerializer):
         max_digits=12,
         decimal_places=2,
         read_only=True,
+        allow_null=True,
     )
     balance_before = serializers.SerializerMethodField()
+    payment_purpose_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
@@ -35,6 +38,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             "customer_name",
             "amount",
             "method",
+            "payment_purpose",
+            "payment_purpose_display",
             "date",
             "reference",
             "notes",
@@ -49,6 +54,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "invoice_no",
             "invoice_total",
             "customer_name",
+            "payment_purpose_display",
             "balance_before",
             "created_by",
             "created_by_name",
@@ -68,7 +74,12 @@ class PaymentSerializer(serializers.ModelSerializer):
             )
         return None
 
+    def get_payment_purpose_display(self, obj):
+        return dict(PaymentPurpose.choices).get(obj.payment_purpose, obj.payment_purpose)
+
     def get_balance_before(self, obj):
+        if obj.invoice is None:
+            return 0.0
         """Balance on the invoice before this payment was made."""
         paid_before = (
             Payment.objects
@@ -85,65 +96,59 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context["request"]
-        invoice: Invoice = attrs.get("invoice") or (
+        invoice: Invoice | None = attrs.get("invoice") or (
             self.instance.invoice if self.instance else None
         )
+        purpose = attrs.get("payment_purpose", getattr(self.instance, "payment_purpose", PaymentPurpose.INVOICE_PAYMENT))
 
-        if invoice is None:
-            raise serializers.ValidationError(
-                {"invoice": "Invoice is required."}
-            )
+        if purpose == PaymentPurpose.INVOICE_PAYMENT and invoice is None:
+            raise serializers.ValidationError({"invoice": "Invoice is required for invoice payments."})
 
-        # Tenant isolation
-        if invoice.tenant_id != request.tenant.id:
-            raise serializers.ValidationError(
-                {"invoice": "Invoice does not belong to this tenant."}
-            )
-
-        if not invoice.is_active:
-            raise serializers.ValidationError(
-                {"invoice": "Cannot record payment against an inactive invoice."}
-            )
+        if invoice is not None:
+            if invoice.tenant_id != request.tenant.id:
+                raise serializers.ValidationError({"invoice": "Invoice does not belong to this tenant."})
+            if not invoice.is_active:
+                raise serializers.ValidationError({"invoice": "Cannot record payment against an inactive invoice."})
 
         amount = attrs.get("amount")
         if amount is not None and amount <= Decimal("0.00"):
-            raise serializers.ValidationError(
-                {"amount": "Payment amount must be greater than zero."}
-            )
+            raise serializers.ValidationError({"amount": "Payment amount must be greater than zero."})
 
         return attrs
 
     @transaction.atomic
     def create(self, validated_data):
         request = self.context["request"]
-        invoice = validated_data["invoice"]
+        invoice = validated_data.get("invoice")
+        purpose = validated_data.get("payment_purpose", PaymentPurpose.INVOICE_PAYMENT)
 
-        # Lock invoice row to prevent race conditions
-        invoice = (
-            Invoice.objects
-            .select_for_update()
-            .get(pk=invoice.pk)
-        )
-
-        # Check remaining balance
-        paid_so_far = (
-            invoice.payments
-            .filter(is_active=True)
-            .aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
-        )
-        remaining = invoice.total - paid_so_far
-        amount = validated_data["amount"]
-
-        if amount > remaining:
-            raise serializers.ValidationError(
-                {
-                    "amount": (
-                        f"Payment ({amount}) exceeds remaining "
-                        f"balance ({remaining})."
-                    )
-                }
+        if purpose == PaymentPurpose.INVOICE_PAYMENT:
+            if invoice is None:
+                raise serializers.ValidationError({"invoice": "Invoice is required for invoice payments."})
+            invoice = (
+                Invoice.objects
+                .select_for_update()
+                .get(pk=invoice.pk)
             )
+
+            paid_so_far = (
+                invoice.payments
+                .filter(is_active=True)
+                .aggregate(total=Sum("amount"))["total"]
+                or Decimal("0.00")
+            )
+            remaining = invoice.total - paid_so_far
+            amount = validated_data["amount"]
+
+            if amount > remaining:
+                raise serializers.ValidationError(
+                    {
+                        "amount": (
+                            f"Payment ({amount}) exceeds remaining "
+                            f"balance ({remaining})."
+                        )
+                    }
+                )
 
         payment = Payment.objects.create(
             tenant=request.tenant,
@@ -156,7 +161,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             },
         )
 
-        # Update invoice payment status
-        invoice.update_payment_status()
+        if invoice is not None and payment.payment_purpose == PaymentPurpose.INVOICE_PAYMENT:
+            invoice.update_payment_status()
 
         return payment

@@ -27,6 +27,7 @@ urlpatterns = [
     path("api/harvest/",include("apps.production.harvest.urls")),
     path("api/",include("apps.finance.invoice.urls")),
     path("api/payments/", include("apps.finance.payment.urls")),
+    path("api/", include("apps.finance.expense.urls")),
     path("api/egg-inventory/", include("apps.inventory.egg.urls")),
 ]
 if settings.DEBUG:

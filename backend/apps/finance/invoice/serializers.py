@@ -107,7 +107,6 @@ class InvoiceItemReadSerializer(serializers.ModelSerializer):
 
         return None
 
-
 class InvoiceItemWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = InvoiceItem
@@ -218,7 +217,6 @@ class InvoiceItemWriteSerializer(serializers.ModelSerializer):
 
         return attrs
 
-
 class InvoiceSerializer(serializers.ModelSerializer):
     items = InvoiceItemReadSerializer(many=True, read_only=True)
     items_write = InvoiceItemWriteSerializer(
@@ -226,7 +224,6 @@ class InvoiceSerializer(serializers.ModelSerializer):
         write_only=True,
         source="items",
     )
-
     customer_name = serializers.SerializerMethodField()
     branch_name = serializers.SerializerMethodField()
     amount_paid = serializers.SerializerMethodField()
@@ -404,9 +401,9 @@ class InvoiceSerializer(serializers.ModelSerializer):
             )
 
         invoice = Invoice.objects.create(
-            # tenant=request.tenant,
-            # created_by=request.user,
-            # updated_by=request.user,
+            tenant=request.tenant,
+            created_by=request.user,
+            updated_by=request.user,
             **validated_data,
         )
 

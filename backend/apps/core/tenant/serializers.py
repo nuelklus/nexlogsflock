@@ -1,9 +1,6 @@
 from rest_framework import serializers
-
 from .models import Tenant, TenantUser, TenantRole
 from apps.core.users.models import User
-
-
 
 class TenantSerializer(serializers.ModelSerializer):
 
@@ -32,8 +29,6 @@ class TenantSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
-
-
 
 class TenantUserSerializer(serializers.ModelSerializer):
 
@@ -71,8 +66,6 @@ class TenantUserSerializer(serializers.ModelSerializer):
             "tenant",
             "joined_at",
         )
-
-
 
 class TenantMembershipCreateSerializer(serializers.ModelSerializer):
 
@@ -125,8 +118,6 @@ class TenantMembershipCreateSerializer(serializers.ModelSerializer):
 
         return tenant_user
 
-
-
 class TenantMembershipUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -136,8 +127,6 @@ class TenantMembershipUpdateSerializer(serializers.ModelSerializer):
             "role",
             "is_active",
         )
-
-
 
 class UserTenantsSerializer(serializers.ModelSerializer):
 

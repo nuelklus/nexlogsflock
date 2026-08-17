@@ -65,17 +65,26 @@ const productionItems: NavigationItem[] = [
   { label: "Egg Inventory", href: "/egg-inventory" },
 ];
 
+const financeParentItem: NavigationItem = { label: "Finance", href: "/finance" };
+
 const financeItems: NavigationItem[] = [
   { label: "Customers", href: "/customers" },
   { label: "Invoices", href: "/invoices" },
+  { label: "Expenses", href: "/expenses" },
+  { label: "Suppliers", href: "/suppliers" },
 ];
 
 const ownerRoleName = "Owner";
 
 const routeLabelMap = new Map(
-  [...primaryNavigationItems, ...farmManagementItems, ...livestockItems, ...productionItems, ...financeItems].map(
-    (item) => [item.href, item.label] as const
-  )
+  [
+    ...primaryNavigationItems,
+    ...farmManagementItems,
+    ...livestockItems,
+    ...productionItems,
+    financeParentItem,
+    ...financeItems,
+  ].map((item) => [item.href, item.label] as const)
 );
 
 const isFarmManagementPath = (pathname: string) =>
@@ -85,7 +94,7 @@ const isLivestockPath = (pathname: string) =>
 const isProductionPath = (pathname: string) =>
   productionItems.some((item) => item.href === pathname);
 const isFinancePath = (pathname: string) =>
-  financeItems.some((item) => item.href === pathname);
+  pathname === financeParentItem.href || financeItems.some((item) => item.href === pathname);
 
 const navigateToItem = (
   href: string,
@@ -275,7 +284,10 @@ function NavigationList({
       </Collapse>
 
       <ListItemButton
-        onClick={onToggleFinance}
+        onClick={() => {
+          onNavigate(financeParentItem.href);
+          onToggleFinance();
+        }}
         selected={isFinancePath(pathname)}
         sx={{ px: 1.5, py: 1, borderRadius: 2 }}
       >

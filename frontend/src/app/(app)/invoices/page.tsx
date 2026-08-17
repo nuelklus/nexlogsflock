@@ -49,8 +49,10 @@ import { listHarvests, Harvest } from "@/features/harvest/api";
 import {
   Invoice,
   InvoiceItemWriteInput,
+  InvoiceSummary,
   createInvoice,
   deleteInvoice,
+  getInvoiceSummary,
   listInvoices,
 } from "@/features/invoices/api";
 import { createPayment, listPayments, Payment, PAYMENT_METHODS } from "@/features/payments/api";
@@ -109,9 +111,30 @@ const STATUS_LABELS: Record<string, string> = {
   overdue: "Overdue",
 };
 
+const EMPTY_SUMMARY: InvoiceSummary = {
+  total_invoices: 0,
+  total_invoiced: "0.00",
+  total_amount: "0.00",
+  total_paid: "0.00",
+  amount_paid: "0.00",
+  total_partially_paid: "0.00",
+  total_unpaid: "0.00",
+  total_outstanding: "0.00",
+  amount_outstanding: "0.00",
+  total_balance: "0.00",
+  paid_invoices: 0,
+  paid_invoice_count: 0,
+  partial_invoices: 0,
+  partially_paid_invoice_count: 0,
+  unpaid_invoices: 0,
+  unpaid_invoice_count: 0,
+  overdue_invoices: 0,
+};
+
 interface PaymentFormState {
   amount: string;
   method: string;
+  payment_purpose: string;
   date: string;
   reference: string;
   notes: string;
@@ -126,6 +149,19 @@ export default function InvoicesPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [summary, setSummary] = useState<InvoiceSummary>(EMPTY_SUMMARY);
+  const [filters, setFilters] = useState({
+    date_from: "",
+    date_to: "",
+    payment_status: "",
+    item_type: "",
+    branch_id: "",
+    customer_id: "",
+    amount_min: "",
+    amount_max: "",
+    search: "",
+  });
 
   // Create invoice dialog
   const [openCreate, setOpenCreate] = useState(false);
@@ -143,6 +179,7 @@ export default function InvoicesPage() {
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>({
     amount: "",
     method: "cash",
+    payment_purpose: "invoice_payment",
     date: new Date().toISOString().split("T")[0],
     reference: "",
     notes: "",
@@ -154,18 +191,25 @@ export default function InvoicesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const load = async () => {
+  const load = async (nextPage = page, nextFilters = filters) => {
     try {
       setIsLoading(true);
       setError(null);
-      const [inv, cust, br, harv, eggs] = await Promise.all([
-        listInvoices(),
+      const query = {
+        ...nextFilters,
+        page: nextPage,
+        page_size: 80,
+      };
+      const [inv, invSummary, cust, br, harv, eggs] = await Promise.all([
+        listInvoices(query),
+        getInvoiceSummary(query),
         listCustomers(),
         listBranches(),
         listHarvests(),
         listEggInventory(),
       ]);
       setInvoices(inv);
+      setSummary(invSummary);
       setCustomers(cust);
       setBranches(br);
       setHarvests(harv);
@@ -182,8 +226,13 @@ export default function InvoicesPage() {
 
     const loadInitialInvoices = async () => {
       try {
-        const [inv, cust, br, harv, eggs] = await Promise.all([
-          listInvoices(),
+        const query = {
+          page,
+          page_size: 80,
+        };
+        const [inv, invSummary, cust, br, harv, eggs] = await Promise.all([
+          listInvoices(query),
+          getInvoiceSummary(query),
           listCustomers(),
           listBranches(),
           listHarvests(),
@@ -193,6 +242,7 @@ export default function InvoicesPage() {
         if (isMounted) {
           setError(null);
           setInvoices(inv);
+          setSummary(invSummary);
           setCustomers(cust);
           setBranches(br);
           setHarvests(harv);
@@ -214,7 +264,7 @@ export default function InvoicesPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [page]);
 
   // --- Invoice create form helpers ---
 
@@ -350,6 +400,7 @@ export default function InvoicesPage() {
     setPaymentForm({
       amount: String(inv.balance_due),
       method: "cash",
+      payment_purpose: "invoice_payment",
       date: new Date().toISOString().split("T")[0],
       reference: "",
       notes: "",
@@ -378,6 +429,7 @@ export default function InvoicesPage() {
         invoice: selectedInvoice.id,
         amount,
         method: paymentForm.method,
+        payment_purpose: paymentForm.payment_purpose,
         date: paymentForm.date,
         reference: paymentForm.reference,
         notes: paymentForm.notes,
@@ -414,6 +466,28 @@ export default function InvoicesPage() {
     }
   };
 
+  const applyFilters = async () => {
+    setPage(1);
+    await load(1, filters);
+  };
+
+  const clearFilters = async () => {
+    const cleared = {
+      date_from: "",
+      date_to: "",
+      payment_status: "",
+      item_type: "",
+      branch_id: "",
+      customer_id: "",
+      amount_min: "",
+      amount_max: "",
+      search: "",
+    };
+    setFilters(cleared);
+    setPage(1);
+    await load(1, cleared);
+  };
+
   return (
     <Box>
       <PageHeader
@@ -429,6 +503,149 @@ export default function InvoicesPage() {
           {error}
         </Alert>
       )}
+
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Grid container spacing={2} sx={{ alignItems: "center" }}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              label="From date"
+              type="date"
+              fullWidth
+              value={filters.date_from}
+              onChange={(event) => setFilters((prev) => ({ ...prev, date_from: event.target.value }))}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              label="To date"
+              type="date"
+              fullWidth
+              value={filters.date_to}
+              onChange={(event) => setFilters((prev) => ({ ...prev, date_to: event.target.value }))}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              select
+              label="Payment status"
+              fullWidth
+              value={filters.payment_status}
+              onChange={(event) => setFilters((prev) => ({ ...prev, payment_status: event.target.value }))}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="unpaid">Unpaid</MenuItem>
+              <MenuItem value="partially_paid">Partially Paid</MenuItem>
+              <MenuItem value="paid">Paid</MenuItem>
+              <MenuItem value="overdue">Overdue</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              select
+              label="Item type"
+              fullWidth
+              value={filters.item_type}
+              onChange={(event) => setFilters((prev) => ({ ...prev, item_type: event.target.value }))}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="eggs">Egg Sales</MenuItem>
+              <MenuItem value="birds">Bird Sales</MenuItem>
+              <MenuItem value="meat">Meat Sales</MenuItem>
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              select
+              label="Branch"
+              fullWidth
+              value={filters.branch_id}
+              onChange={(event) => setFilters((prev) => ({ ...prev, branch_id: event.target.value }))}
+            >
+              <MenuItem value="">All</MenuItem>
+              {branches.map((branch) => (
+                <MenuItem key={branch.id} value={branch.id}>
+                  {branch.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              select
+              label="Customer"
+              fullWidth
+              value={filters.customer_id}
+              onChange={(event) => setFilters((prev) => ({ ...prev, customer_id: event.target.value }))}
+            >
+              <MenuItem value="">All</MenuItem>
+              {customers.map((customer) => (
+                <MenuItem key={customer.id} value={customer.id}>
+                  {customer.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              label="Min amount"
+              fullWidth
+              value={filters.amount_min}
+              onChange={(event) => setFilters((prev) => ({ ...prev, amount_min: event.target.value }))}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              label="Max amount"
+              fullWidth
+              value={filters.amount_max}
+              onChange={(event) => setFilters((prev) => ({ ...prev, amount_max: event.target.value }))}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="Search invoice or customer"
+              fullWidth
+              value={filters.search}
+              onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 8 }}>
+            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+              <Button variant="contained" onClick={applyFilters}>Apply filters</Button>
+              <Button variant="outlined" onClick={clearFilters}>Clear filters</Button>
+            </Stack>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Total invoices</Typography>
+            <Typography variant="h5">{summary.total_invoices}</Typography>
+          </Paper>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Total invoiced</Typography>
+            <Typography variant="h5">{formatCurrency(Number(summary.total_invoiced ?? summary.total_amount ?? 0), "GHS")}</Typography>
+          </Paper>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Total paid</Typography>
+            <Typography variant="h5">{formatCurrency(Number(summary.total_paid ?? summary.amount_paid ?? 0), "GHS")}</Typography>
+          </Paper>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle2" color="text.secondary">Outstanding</Typography>
+            <Typography variant="h5">{formatCurrency(Number(summary.total_outstanding ?? summary.amount_outstanding ?? summary.total_balance ?? 0), "GHS")}</Typography>
+          </Paper>
+        </Grid>
+      </Grid>
 
       <TableContainer component={Paper}>
         <Table size="small">

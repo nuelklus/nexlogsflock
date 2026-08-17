@@ -137,6 +137,30 @@ class Invoice(TenantBaseModel):
             models.Index(
                 fields=[
                     "tenant",
+                    "invoice_date",
+                ],
+                name="idx_invoice_tenant_date",
+            ),
+
+            models.Index(
+                fields=[
+                    "tenant",
+                    "branch",
+                ],
+                name="idx_invoice_tenant_branch",
+            ),
+
+            models.Index(
+                fields=[
+                    "tenant",
+                    "customer",
+                ],
+                name="idx_invoice_tenant_customer",
+            ),
+
+            models.Index(
+                fields=[
+                    "tenant",
                     "payment_status",
                 ],
                 name="idx_invoice_tenant_status",

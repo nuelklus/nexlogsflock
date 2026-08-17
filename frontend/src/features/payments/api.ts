@@ -11,12 +11,14 @@ export const PAYMENT_METHODS = [
 
 export interface Payment {
   id: string;
-  invoice: string;
-  invoice_no: string;
-  invoice_total: string;
+  invoice: string | null;
+  invoice_no: string | null;
+  invoice_total: string | null;
   customer_name: string | null;
   amount: string;
   method: string;
+  payment_purpose: string;
+  payment_purpose_display: string;
   date: string;
   reference: string;
   notes: string;
@@ -28,9 +30,10 @@ export interface Payment {
 }
 
 export interface CreatePaymentInput {
-  invoice: string;
+  invoice?: string | null;
   amount: number;
   method: string;
+  payment_purpose?: string;
   date: string;
   reference?: string;
   notes?: string;
@@ -39,6 +42,7 @@ export interface CreatePaymentInput {
 export const listPayments = async (params?: {
   invoice?: string;
   customer?: string;
+  payment_purpose?: string;
 }): Promise<Payment[]> => {
   const res = await axiosInstance.get<Payment[]>("/api/payments/", { params });
   return res.data;

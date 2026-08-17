@@ -54,8 +54,8 @@ export interface UpdateBatchInput {
   is_active?: boolean;
 }
 
-export const listBatches = async (): Promise<BirdBatch[]> => {
-  const response = await axiosInstance.get<BirdBatch[]>("/api/batches/");
+export const listBatches = async (params?: { branch?: string; branch_id?: string; house?: string; house_id?: string }): Promise<BirdBatch[]> => {
+  const response = await axiosInstance.get<BirdBatch[]>("/api/batches/", { params });
   return response.data;
 };
 

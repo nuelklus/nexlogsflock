@@ -32,8 +32,8 @@ export interface UpdateHouseInput {
   is_active?: boolean;
 }
 
-export const listHouses = async (): Promise<House[]> => {
-  const response = await axiosInstance.get<House[]>("/api/houses/");
+export const listHouses = async (params?: { branch?: string; branch_id?: string }): Promise<House[]> => {
+  const response = await axiosInstance.get<House[]>("/api/houses/", { params });
   return response.data;
 };
 

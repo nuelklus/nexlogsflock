@@ -43,6 +43,9 @@ class PaymentViewSet(
         customer_id = self.request.query_params.get("customer")
         if customer_id:
             qs = qs.filter(invoice__customer_id=customer_id)
+        purpose = self.request.query_params.get("payment_purpose")
+        if purpose:
+            qs = qs.filter(payment_purpose=purpose)
         return qs
 
     def perform_create(self, serializer):

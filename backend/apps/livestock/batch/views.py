@@ -25,20 +25,26 @@ class BirdBatchViewSet(ModelViewSet):
         if not self.request.tenant:
             return BirdBatch.objects.none()
 
-        return (
-            BirdBatch.objects.filter(
-                tenant=self.request.tenant,
-                is_active=True,
-            )
-            .select_related(
-                "tenant",
-                "branch",
-                "house",
-                "breed",
-                "purchase",
-            )
-            .order_by("-created_at")
+        qs = BirdBatch.objects.filter(
+            tenant=self.request.tenant,
+            is_active=True,
+        ).select_related(
+            "tenant",
+            "branch",
+            "house",
+            "breed",
+            "purchase",
         )
+
+        branch_id = self.request.query_params.get("branch_id") or self.request.query_params.get("branch")
+        if branch_id:
+            qs = qs.filter(branch_id=branch_id)
+
+        house_id = self.request.query_params.get("house_id") or self.request.query_params.get("house")
+        if house_id:
+            qs = qs.filter(house_id=house_id)
+
+        return qs.order_by("-created_at")
 
     def perform_create(self, serializer):
 
