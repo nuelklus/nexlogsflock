@@ -36,3 +36,20 @@ coverage/
 
 # Misc
 *.pid
+
+# Environment variables
+backend/.env
+frontend/.env
+
+# Django generated/user data
+backend/media/
+backend/staticfiles/
+
+# Django/Python cache
+backend/__pycache__/
+backend/**/__pycache__/
+*.pyc
+
+# Next.js generated files
+frontend/.next/
+frontend/node_modules/
