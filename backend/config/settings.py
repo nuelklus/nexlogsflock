@@ -11,9 +11,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "django-insecure-change-me-in-production"
 
-DEBUG = True
+DEBUG = False
+# DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    "flocks.nexlogssolutions.com",
+    "localhost",
+    "127.0.0.1",
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -57,7 +63,6 @@ INSTALLED_APPS = [
     # finance
     "apps.finance.invoice",
     "apps.finance.payment",
-    "apps.finance.expense",
     # analytics
     "apps.analytics.daily_farm_analytics",
     # inventory
@@ -86,8 +91,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
-FRONTEND_URL = "http://localhost:3000"  # Development
-# FRONTEND_URL = "https://app.yourdomain.com"  # Production
+# FRONTEND_URL = "http://localhost:3000"  # Development
+# Production
+FRONTEND_URL = "https://flocks.nexlogssolutions.com"
 
 EGG_CRATE_CAPACITY = 30
 
@@ -126,10 +132,10 @@ ASGI_APPLICATION = "config.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "nexlogsflockdb",
-        "USER": "nexlogs_user",
+        "NAME": "nexlogs_flock",
+        "USER": "nexlogs_flock_user",
         "PASSWORD": "StrongPassword990",
-        "HOST": "127.0.0.1",
+        "HOST": "nexlogs-postgres",
         "PORT": "5432",
     }
 }
@@ -161,7 +167,9 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
+
 CORS_ALLOWED_ORIGINS = [
+    "https://flocks.nexlogssolutions.com",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
