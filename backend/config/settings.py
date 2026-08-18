@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     # finance
     "apps.finance.invoice",
     "apps.finance.payment",
+    "apps.finance.expense",
     # analytics
     "apps.analytics.daily_farm_analytics",
     # inventory
