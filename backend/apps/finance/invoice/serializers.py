@@ -401,9 +401,9 @@ class InvoiceSerializer(serializers.ModelSerializer):
             )
 
         invoice = Invoice.objects.create(
-            tenant=request.tenant,
-            created_by=request.user,
-            updated_by=request.user,
+            # tenant=request.tenant,
+            # created_by=request.user,
+            # updated_by=request.user,
             **validated_data,
         )
 
@@ -457,12 +457,15 @@ class InvoiceSerializer(serializers.ModelSerializer):
         invoice.update_payment_status()
         return invoice
 
+    @transaction.atomic
     def cancel(self, invoice, *, request):
         if invoice.payments.filter(is_active=True).exists():
             raise serializers.ValidationError(
                 {
-                    "invoice":
-                    "Invoices with payments cannot be cancelled."
+                    "invoice": (
+                        "This invoice already has payments recorded, so it cannot be cancelled. "
+                        "The payment history must remain for audit and accounting records."
+                    )
                 }
             )
 

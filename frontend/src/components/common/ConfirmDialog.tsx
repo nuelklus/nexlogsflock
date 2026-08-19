@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack } from "@mui/material";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -9,6 +9,7 @@ export interface ConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   isLoading?: boolean;
+  error?: string | null;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
@@ -20,13 +21,21 @@ export function ConfirmDialog({
   confirmText = "Delete",
   cancelText = "Cancel",
   isLoading = false,
+  error,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onClose={onCancel} maxWidth="sm" fullWidth>
       <DialogTitle>{title}</DialogTitle>
-      <DialogContent>{message}</DialogContent>
+      <DialogContent>
+        <Stack spacing={2}>
+          <div>{message}</div>
+          {error && (
+            <Alert severity="error">{error}</Alert>
+          )}
+        </Stack>
+      </DialogContent>
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={onCancel} disabled={isLoading}>
           {cancelText}

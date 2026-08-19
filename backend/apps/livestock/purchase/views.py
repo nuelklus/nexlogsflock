@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from apps.core.authtntuser.permissions.drf_permissions import HasModulePermission
 from apps.core.tenant.permissions import HasTenantAccess
 from .models import ChickPurchase, Supplier, Customer, FeedPurchase
 from .serializers import ChickPurchaseSerializer,SupplierSerializer,CustomerSerializer,FeedPurchaseSerializer
@@ -17,13 +18,26 @@ from apps.feed.consumption.services import (
 class ChickPurchaseViewSet(ModelViewSet):
 
     serializer_class = ChickPurchaseSerializer
+    module = "purchases"
 
     permission_classes = (
         IsAuthenticated,
         HasTenantAccess,
+        HasModulePermission,
     )
 
     lookup_field = "id"
+
+    def get_permissions(self):
+        self.permission_action = {
+            "list": "view",
+            "retrieve": "view",
+            "create": "create",
+            "update": "update",
+            "partial_update": "update",
+            "destroy": "delete",
+        }.get(self.action, "view")
+        return super().get_permissions()
 
     def get_queryset(self):
 
@@ -248,13 +262,26 @@ class CustomerViewSet(ModelViewSet):
 class FeedPurchaseViewSet(ModelViewSet):
 
     serializer_class = FeedPurchaseSerializer
+    module = "purchases"
 
     permission_classes = (
         IsAuthenticated,
         HasTenantAccess,
+        HasModulePermission,
     )
 
     lookup_field = "id"
+
+    def get_permissions(self):
+        self.permission_action = {
+            "list": "view",
+            "retrieve": "view",
+            "create": "create",
+            "update": "update",
+            "partial_update": "update",
+            "destroy": "delete",
+        }.get(self.action, "view")
+        return super().get_permissions()
 
     def get_queryset(self):
 

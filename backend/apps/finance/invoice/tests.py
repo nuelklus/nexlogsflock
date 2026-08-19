@@ -223,3 +223,19 @@ class InvoiceListApiTests(TestCase):
 
         self.assertEqual(other_response.status_code, 200, other_response.data)
         self.assertEqual(other_response.data["summary"]["total_invoices"], 1)
+
+    def test_cancelled_paid_invoice_returns_clear_user_message(self):
+        invoice = Invoice.objects.filter(
+            tenant=self.tenant,
+            payment_status="paid",
+        ).first()
+
+        self.assertIsNotNone(invoice)
+
+        response = self.client.delete(
+            f"/api/invoice/{invoice.id}/",
+            **self.headers,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already has payments recorded", str(response.data["detail"]))

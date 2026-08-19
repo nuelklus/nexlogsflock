@@ -16,7 +16,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 from django.utils.dateparse import parse_date
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
@@ -297,8 +297,32 @@ class InvoiceViewSet(
     def destroy(self, request, *args, **kwargs):
         invoice = self.get_object()
         serializer = self.get_serializer(invoice)
-        serializer.cancel(invoice, request=request)
+
+        try:
+            serializer.cancel(invoice, request=request)
+        except serializers.ValidationError as exc:
+            detail = exc.detail
+            if isinstance(detail, dict):
+                detail = (
+                    detail.get("invoice")
+                    or detail.get("detail")
+                    or "This invoice cannot be cancelled in its current state."
+                )
+            elif isinstance(detail, list):
+                detail = detail[0] if detail else "This invoice cannot be cancelled in its current state."
+
+            return Response(
+                {
+                    "detail": detail,
+                    "message": detail,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         return Response(
-            {"detail": "Invoice cancelled successfully."},
+            {
+                "detail": "Invoice cancelled successfully.",
+                "message": "Invoice cancelled successfully.",
+            },
             status=status.HTTP_200_OK,
         )

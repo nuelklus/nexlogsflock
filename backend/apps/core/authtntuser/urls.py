@@ -8,6 +8,7 @@ from .views import (
     CustomTokenObtainPairView,
     OrganizationListView,
     OwnerRegistrationView,
+    StaffRegistrationView,
     VerifyEmailView,
     RequestPasswordResetEmailView,
     SetNewPasswordView,
@@ -34,6 +35,11 @@ urlpatterns = [
         "OwnerRegister/",
         OwnerRegistrationView.as_view(),
         name="owner_register",
+    ),
+    path(
+        "register/staff/",
+        StaffRegistrationView.as_view(),
+        name="register_staff",
     ),
 
 

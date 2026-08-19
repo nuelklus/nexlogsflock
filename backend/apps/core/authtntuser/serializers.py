@@ -6,7 +6,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.core.tenant.models import Tenant, TenantUser, TenantRole
 from apps.core.users.models import User
-from apps.core.authtntuser.models import RolePermission
+from apps.core.authtntuser.models import Permission, RolePermission
 from apps.organization.branch.models import Branch
 # ---------------------------------------------------------
 from django.utils.text import slugify
@@ -15,6 +15,50 @@ from apps.core.authtntuser.models import Role
 from apps.core.authtntuser.services.permissions import (
     setup_tenant_permissions,
 )
+
+STAFF_ROLE_CONFIG = {
+    "farm_manager": {
+        "name": "Farm Manager",
+        "description": "Manages daily farm operations and team coordination.",
+        "permissions": (
+            ("dashboard", "view"),
+            ("flocks", "view"), ("flocks", "create"), ("flocks", "update"), ("flocks", "delete"),
+            ("houses", "view"), ("houses", "create"), ("houses", "update"), ("houses", "delete"),
+            ("batches", "view"), ("batches", "create"), ("batches", "update"), ("batches", "delete"),
+            ("birds", "view"), ("birds", "create"), ("birds", "update"), ("birds", "delete"),
+            ("eggs", "view"), ("eggs", "create"), ("eggs", "update"), ("eggs", "delete"),
+            ("harvest", "view"), ("harvest", "create"), ("harvest", "update"), ("harvest", "delete"),
+            ("feed", "view"), ("feed", "create"), ("feed", "update"), ("feed", "delete"),
+            ("health", "view"), ("health", "create"), ("health", "update"), ("health", "delete"),
+            ("sales", "view"), ("sales", "create"), ("sales", "update"), ("sales", "delete"),
+            ("customers", "view"), ("customers", "create"), ("customers", "update"), ("customers", "delete"),
+            ("suppliers", "view"), ("suppliers", "create"), ("suppliers", "update"), ("suppliers", "delete"),
+            ("purchases", "view"), ("purchases", "create"), ("purchases", "update"), ("purchases", "delete"),
+            ("inventory", "view"), ("inventory", "create"), ("inventory", "update"), ("inventory", "delete"),
+            ("reports", "view"),
+            ("finance", "view"), ("finance", "create"), ("finance", "update"), ("finance", "delete"),
+            ("staff", "view"), ("staff", "create"), ("staff", "update"), ("staff", "delete"),
+            ("settings", "view"), ("settings", "update"),
+        ),
+    },
+    "farm_attendant": {
+        "name": "Farm Attendant",
+        "description": "Performs routine farm tasks and daily production support.",
+        "permissions": (
+            ("dashboard", "view"),
+            ("flocks", "view"),
+            ("houses", "view"),
+            ("batches", "view"),
+            ("birds", "view"),
+            ("eggs", "view"), ("eggs", "create"), ("eggs", "update"),
+            ("feed", "view"), ("feed", "create"), ("feed", "update"),
+            ("health", "view"), ("health", "create"), ("health", "update"),
+            ("inventory", "view"), ("inventory", "create"), ("inventory", "update"),
+            ("reports", "view"),
+            ("finance", "view"), ("finance", "create"),
+        ),
+    },
+}
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
@@ -595,12 +639,175 @@ class OwnerRegistrationSerializer(serializers.ModelSerializer):
 
             raise
 
+class StaffRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        min_length=8,
+        validators=[validate_password],
+    )
+    branch_id = serializers.UUIDField(write_only=True, required=True)
+    staff_type = serializers.ChoiceField(
+        choices=("farm_manager", "farm_attendant"),
+        required=True,
+    )
+    role_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    tenant_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+
+    class Meta:
+        model = User
+        fields = (
+            "first_name",
+            "last_name",
+            "email",
+            "phone_number",
+            "password",
+            "branch_id",
+            "staff_type",
+            "role_id",
+            "tenant_id",
+        )
+        extra_kwargs = {
+            "first_name": {"required": True},
+            "last_name": {"required": True},
+            "email": {"required": True},
+            "phone_number": {"required": True},
+        }
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return email
+
+    def validate_staff_type(self, value):
+        staff_type = value.strip().lower()
+        if staff_type not in STAFF_ROLE_CONFIG:
+            raise serializers.ValidationError(
+                "Unsupported staff type. Allowed values are farm_manager and farm_attendant."
+            )
+        return staff_type
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if not request or not getattr(request, "tenant", None):
+            raise serializers.ValidationError({"detail": "Tenant context is required."})
+
+        tenant_id = getattr(request.tenant, "id", None)
+        if "tenant_id" in self.initial_data and str(self.initial_data["tenant_id"]) != str(tenant_id):
+            raise serializers.ValidationError({
+                "tenant_id": "Tenant is determined by the authenticated owner's active membership."
+            })
+
+        if "role_id" in self.initial_data:
+            raise serializers.ValidationError({
+                "role_id": "Role assignment is managed by the server and cannot be overridden."
+            })
+
+        branch_id = attrs.get("branch_id")
+        tenant = request.tenant
+        branch = Branch.objects.filter(id=branch_id, tenant=tenant, is_active=True).first()
+        if not branch:
+            raise serializers.ValidationError({
+                "branch_id": "Branch does not belong to the authenticated owner's tenant."
+            })
+
+        owner_membership = (
+            TenantUser.objects.select_related("role")
+            .filter(user=request.user, tenant=tenant, is_active=True)
+            .first()
+        )
+        if not owner_membership or not owner_membership.role:
+            raise serializers.ValidationError({
+                "detail": "Only a tenant owner can register staff members."
+            })
+        if owner_membership.role.name != "Owner" or not owner_membership.role.is_system_role:
+            raise serializers.ValidationError({
+                "detail": "Only the tenant owner can register staff members."
+            })
+
+        attrs["branch_obj"] = branch
+        return attrs
+
+    @staticmethod
+    def _get_staff_role(tenant, staff_type):
+        config = STAFF_ROLE_CONFIG[staff_type]
+        role, _ = Role.objects.get_or_create(
+            tenant=tenant,
+            name=config["name"],
+            defaults={
+                "description": config["description"],
+                "is_system_role": True,
+                "is_active": True,
+            },
+        )
+
+        permission_lookup = {
+            (permission.module, permission.action): permission
+            for permission in Permission.objects.filter(tenant=tenant, is_active=True)
+        }
+
+        existing_permission_ids = set(
+            RolePermission.objects.filter(tenant=tenant, role=role).values_list("permission_id", flat=True)
+        )
+
+        role_permissions = []
+        for module_name, action in config["permissions"]:
+            permission = permission_lookup.get((module_name, action))
+            if permission and permission.id not in existing_permission_ids:
+                role_permissions.append(
+                    RolePermission(
+                        tenant=tenant,
+                        role=role,
+                        permission=permission,
+                        is_active=True,
+                    )
+                )
+
+        if role_permissions:
+            RolePermission.objects.bulk_create(role_permissions)
+
+        return role
+
+    @transaction.atomic
+    def create(self, validated_data):
+        request = self.context.get("request")
+        tenant = request.tenant if request else None
+        if not tenant:
+            raise serializers.ValidationError({"detail": "Tenant context is required."})
+
+        branch = validated_data.pop("branch_obj")
+        staff_type = validated_data.pop("staff_type")
+        password = validated_data.pop("password")
+
+        user = User.objects.create_user(
+            email=validated_data["email"],
+            password=password,
+            first_name=validated_data.get("first_name", ""),
+            last_name=validated_data.get("last_name", ""),
+            phone_number=validated_data.get("phone_number", ""),
+            is_active=True,
+        )
+
+        role = self._get_staff_role(tenant, staff_type)
+
+        TenantUser.objects.create(
+            user=user,
+            tenant=tenant,
+            role=role,
+            is_active=True,
+        )
+
+        user.staff_type = staff_type
+        user.staff_branch = branch
+        return user
+
+
 class EmailVerificationSerializer(serializers.Serializer):
     token = serializers.CharField(max_length=255)
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
-
 
 class SetNewPasswordSerializer(serializers.Serializer):
     uid = serializers.CharField(required=True)
@@ -619,7 +826,6 @@ class SetNewPasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({"new_password": list(e.messages)})
 
         return attrs
-
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True, required=True)

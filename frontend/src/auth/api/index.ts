@@ -5,6 +5,8 @@ import {
   MyOrganizationsResponse,
   RegisterFormInputs,
   RegisterResponse,
+  StaffRegistrationPayload,
+  StaffRegistrationResponse,
 } from "@/auth/types";
 
 export const login = async (data: LoginFormInputs): Promise<AuthTokens> => {
@@ -14,6 +16,11 @@ export const login = async (data: LoginFormInputs): Promise<AuthTokens> => {
 
 export const register = async (data: RegisterFormInputs): Promise<RegisterResponse> => {
   const response = await axiosInstance.post<RegisterResponse>("/api/auth/register/", data);
+  return response.data;
+};
+
+export const registerStaff = async (data: StaffRegistrationPayload): Promise<StaffRegistrationResponse> => {
+  const response = await axiosInstance.post<StaffRegistrationResponse>("/api/auth/register/staff/", data);
   return response.data;
 };
 

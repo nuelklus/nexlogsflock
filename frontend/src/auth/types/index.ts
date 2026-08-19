@@ -70,3 +70,44 @@ export interface RegisterResponse {
   last_name: string;
   phone_number: string | null;
 }
+
+export interface StaffRegistrationFormInputs {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number: string;
+  password: string;
+  confirm_password: string;
+  branch_id: string;
+  staff_type: "farm_manager" | "farm_attendant";
+}
+
+export interface StaffRegistrationPayload {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number: string;
+  password: string;
+  branch_id: string;
+  staff_type: "farm_manager" | "farm_attendant";
+}
+
+export interface StaffRegistrationResponse {
+  message: string;
+  user: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone_number: string;
+    staff_type: "farm_manager" | "farm_attendant";
+    role: {
+      id: string;
+      name: string;
+    };
+    branch: {
+      id: string;
+      name: string;
+    };
+  };
+}

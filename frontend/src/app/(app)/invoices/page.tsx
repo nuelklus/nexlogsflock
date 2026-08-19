@@ -190,6 +190,8 @@ export default function InvoicesPage() {
   // Delete
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const invoiceToDelete = invoices.find((inv) => inv.id === deleteId) ?? null;
+  const hasRecordedPayments = invoiceToDelete ? Number(invoiceToDelete.amount_paid ?? 0) > 0 : false;
 
   const load = async (nextPage = page, nextFilters = filters) => {
     try {
@@ -453,14 +455,23 @@ export default function InvoicesPage() {
 
   const handleDelete = async () => {
     if (!deleteId) return;
+    if (hasRecordedPayments) {
+      setDeleteId(null);
+      setError("This invoice already has payments recorded, so it cannot be cancelled. The payment history must remain for audit and accounting records.");
+      return;
+    }
+
     try {
       setIsDeleting(true);
+      setError(null);
       await deleteInvoice(deleteId);
       setDeleteId(null);
       if (selectedInvoice?.id === deleteId) setSelectedInvoice(null);
       await load();
     } catch (e) {
-      setError(getApiErrorMessage(e, "An unexpected error occurred."));
+      const message = getApiErrorMessage(e, "An unexpected error occurred.");
+      setDeleteId(null);
+      setError(message);
     } finally {
       setIsDeleting(false);
     }
@@ -707,10 +718,17 @@ export default function InvoicesPage() {
                           <ReceiptIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton size="small" color="error" onClick={() => setDeleteId(inv.id)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                      <Tooltip title={Number(inv.amount_paid ?? 0) > 0 ? "Paid invoices cannot be cancelled" : "Delete"}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => setDeleteId(inv.id)}
+                            disabled={Number(inv.amount_paid ?? 0) > 0}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     </Stack>
                   </TableCell>
@@ -1183,12 +1201,27 @@ export default function InvoicesPage() {
       {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteId}
-        title="Delete Invoice"
-        message="Are you sure you want to delete this invoice? This cannot be undone."
-        confirmText="Delete"
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteId(null)}
+        title={hasRecordedPayments ? "Cannot cancel invoice" : "Cancel Invoice"}
+        message={
+          hasRecordedPayments
+            ? "This invoice already has payments recorded, so it cannot be cancelled. The payment history must remain for audit and accounting records."
+            : "Are you sure you want to cancel this invoice? This action will mark it inactive and restore the related stock."
+        }
+        confirmText={hasRecordedPayments ? "Understood" : "Cancel Invoice"}
+        onConfirm={() => {
+          if (hasRecordedPayments) {
+            setDeleteId(null);
+            setError("This invoice already has payments recorded, so it cannot be cancelled. The payment history must remain for audit and accounting records.");
+            return;
+          }
+          void handleDelete();
+        }}
+        onCancel={() => {
+          setDeleteId(null);
+          setError(null);
+        }}
         isLoading={isDeleting}
+        error={error}
       />
     </Box>
   );

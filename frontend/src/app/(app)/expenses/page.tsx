@@ -102,6 +102,17 @@ const emptyFilters = (): ExpenseFilterState => ({
 
 export default function ExpensesPage() {
   const { activeTenantId, tenants } = useAuth();
+  const activeTenant = useMemo(
+    () => tenants.find((tenant) => tenant.id === activeTenantId) ?? null,
+    [activeTenantId, tenants]
+  );
+  const activeTenantPermissions = activeTenant?.permissions ?? [];
+  const hasPermission = (module: string, action: string) =>
+    activeTenantPermissions.some(
+      (entry) => entry === `${module}.${action}` || entry === `${module}.all`
+    );
+  const canCreateExpenses = hasPermission("finance", "create");
+  const canDeleteExpenses = hasPermission("finance", "delete");
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -497,7 +508,7 @@ export default function ExpensesPage() {
       <PageHeader
         title="Expenses"
         subtitle="Track farm operating costs, vendor payments, and recurring cost categories."
-        action={{ label: "Add Expense", onClick: openCreate }}
+        action={canCreateExpenses ? { label: "Add Expense", onClick: openCreate } : undefined}
       />
 
       {!activeTenantId ? (
@@ -721,7 +732,7 @@ export default function ExpensesPage() {
               <TableCell>House</TableCell>
               <TableCell>Batch</TableCell>
               <TableCell align="right">Amount</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell align="right">{canDeleteExpenses ? "Actions" : ""}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -753,9 +764,11 @@ export default function ExpensesPage() {
                   <TableCell>{expense.batch_name || "—"}</TableCell>
                   <TableCell align="right">{formatCurrency(expense.amount, activeTenantCurrency)}</TableCell>
                   <TableCell align="right">
-                    <Button size="small" color="error" onClick={() => setDeleteId(expense.id)}>
-                      Delete
-                    </Button>
+                    {canDeleteExpenses ? (
+                      <Button size="small" color="error" onClick={() => setDeleteId(expense.id)}>
+                        Delete
+                      </Button>
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))

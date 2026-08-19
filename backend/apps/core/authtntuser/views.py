@@ -16,6 +16,7 @@ from .serializers import (
     PasswordResetRequestSerializer,
     SetNewPasswordSerializer,
     OwnerRegistrationSerializer,
+    StaffRegistrationSerializer,
 )
 from .utils import (
     send_verification_email,
@@ -23,6 +24,7 @@ from .utils import (
 )
 from apps.core.tenant.models import Tenant, TenantUser, TenantRole
 from apps.core.tenant.permissions import HasTenantAccess
+from apps.organization.branch.models import Branch
 from .serializers import OrganizationSerializer
 
 
@@ -70,6 +72,69 @@ class OwnerRegistrationView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
         )
 # end
+
+class StaffRegistrationView(generics.CreateAPIView):
+    serializer_class = StaffRegistrationSerializer
+    permission_classes = [IsAuthenticated, HasTenantAccess]
+
+    def create(self, request, *args, **kwargs):
+        membership = getattr(request, "tenant_membership", None)
+        if not membership or not membership.role:
+            return Response(
+                {"detail": "Only the tenant owner can register staff members."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if membership.role.name != "Owner" or not membership.role.is_system_role:
+            return Response(
+                {"detail": "Only the tenant owner can register staff members."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        tenant_membership = (
+            TenantUser.objects.select_related("role")
+            .filter(user=user, tenant=request.tenant, is_active=True)
+            .first()
+        )
+        role = tenant_membership.role if tenant_membership else None
+        branch_id = serializer.validated_data["branch_id"]
+        branch = Branch.objects.filter(id=branch_id, tenant=request.tenant, is_active=True).first()
+
+        if not role or not branch:
+            return Response(
+                {"detail": "Staff registration failed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response_user = {
+            "id": str(user.id),
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "phone_number": user.phone_number,
+            "staff_type": serializer.validated_data["staff_type"],
+            "role": {
+                "id": str(role.id),
+                "name": role.name,
+            },
+            "branch": {
+                "id": str(branch.id),
+                "name": branch.name,
+            },
+        }
+
+        return Response(
+            {
+                "message": "Staff member registered successfully.",
+                "user": response_user,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
 
 class VerifyEmailView(APIView):
 

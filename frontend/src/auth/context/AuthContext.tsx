@@ -205,12 +205,16 @@ export const AuthProvider = ({
       const storedTokens = readAuthTokens();
 
       if (!storedTokens) {
+        setTokens(null);
+        setUser(null);
+        setTenants([]);
+        setActiveTenantIdState(null);
+        clearActiveTenantId();
         setIsLoading(false);
         return;
       }
 
       setTokens(storedTokens);
-
       setUser(toUser(storedTokens));
 
       await loadTenants({

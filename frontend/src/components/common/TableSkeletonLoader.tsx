@@ -14,7 +14,7 @@ export function TableSkeletonLoader({ rows = 5, columns = 3 }: TableSkeletonLoad
         <TableRow key={rowIndex}>
           {Array.from({ length: columns }).map((_, colIndex) => (
             <TableCell key={colIndex}>
-              <Skeleton width={Math.random() * 100 + 80} />
+              <Skeleton width={80 + ((rowIndex + colIndex) % 4) * 18} />
             </TableCell>
           ))}
         </TableRow>

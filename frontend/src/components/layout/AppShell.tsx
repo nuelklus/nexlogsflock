@@ -12,7 +12,6 @@ import {
   AppBar,
   Avatar,
   Box,
-  Chip,
   Collapse,
   Divider,
   Drawer,
@@ -47,6 +46,7 @@ const primaryNavigationItems: NavigationItem[] = [
 
 const farmManagementItems: NavigationItem[] = [
   { label: "Branches", href: "/branches" },
+  { label: "Staff", href: "/staff" },
   { label: "Houses", href: "/houses" },
   { label: "Batches", href: "/batches" },
   { label: "Breeds", href: "/breeds" },
@@ -75,6 +75,9 @@ const financeItems: NavigationItem[] = [
 ];
 
 const ownerRoleName = "Owner";
+
+const hasPermission = (permissions: string[] = [], module: string, action: string) =>
+  permissions.some((entry) => entry === `${module}.${action}` || entry === `${module}.all`);
 
 const routeLabelMap = new Map(
   [
@@ -107,6 +110,7 @@ const navigateToItem = (
 
 interface NavigationListProps {
   pathname: string;
+  livestockItems: NavigationItem[];
   isFarmManagementVisible: boolean;
   isFarmManagementExpanded: boolean;
   isLivestockExpanded: boolean;
@@ -122,6 +126,7 @@ interface NavigationListProps {
 
 function NavigationList({
   pathname,
+  livestockItems,
   isFarmManagementVisible,
   isFarmManagementExpanded,
   isLivestockExpanded,
@@ -147,8 +152,9 @@ function NavigationList({
           px: 2,
           py: 1.25,
           color: "text.secondary",
-          fontWeight: 700,
+          fontWeight: 800,
           letterSpacing: "0.12em",
+          fontSize: "0.68rem",
         }}
       >
         Overview
@@ -161,15 +167,20 @@ function NavigationList({
           onClick={() => onNavigate(item.href)}
           sx={{
             px: 1.5,
-            py: 1,
+            py: 0.9,
             borderRadius: 2,
+            color: pathname === item.href ? "primary.main" : "text.primary",
             "&.Mui-selected": {
               backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
               color: "primary.main",
+              boxShadow: "inset 0 0 0 1px rgba(30,136,229,0.08)",
+            },
+            "&:hover": {
+              backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.04),
             },
           }}
         >
-          <ListItemText primary={item.label} sx={{ ml: 1 }} />
+          <ListItemText primary={item.label} sx={{ ml: 1, '& .MuiTypography-root': { fontWeight: pathname === item.href ? 700 : 500 } }} />
         </ListItemButton>
       ))}
 
@@ -182,8 +193,9 @@ function NavigationList({
               px: 2,
               py: 1.25,
               color: "text.secondary",
-              fontWeight: 700,
+              fontWeight: 800,
               letterSpacing: "0.12em",
+              fontSize: "0.68rem",
             }}
           >
             Farm Management
@@ -191,12 +203,24 @@ function NavigationList({
           <ListItemButton
             onClick={onToggleFarmManagement}
             selected={farmManagementActive}
-            sx={{ px: 1.5, py: 1, borderRadius: 2 }}
+            sx={{
+              px: 1.5,
+              py: 0.9,
+              borderRadius: 2,
+              color: farmManagementActive ? "primary.main" : "text.primary",
+              "&.Mui-selected": {
+                backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                color: "primary.main",
+              },
+              "&:hover": {
+                backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.04),
+              },
+            }}
           >
             <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
               <AgricultureIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText primary="Farm Management" />
+            <ListItemText primary="Farm Management" sx={{ '& .MuiTypography-root': { fontWeight: farmManagementActive ? 700 : 500 } }} />
             {isFarmManagementExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
           </ListItemButton>
 
@@ -207,9 +231,17 @@ function NavigationList({
                   key={item.href}
                   selected={pathname === item.href}
                   onClick={() => onNavigate(item.href)}
-                  sx={{ px: 1.5, py: 0.8, borderRadius: 2 }}
+                  sx={{
+                    px: 1.5,
+                    py: 0.75,
+                    borderRadius: 2,
+                    "&.Mui-selected": {
+                      backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                      color: "primary.main",
+                    },
+                  }}
                 >
-                  <ListItemText primary={item.label} sx={{ ml: 0.5 }} />
+                  <ListItemText primary={item.label} sx={{ ml: 0.5, '& .MuiTypography-root': { fontWeight: pathname === item.href ? 700 : 500 } }} />
                 </ListItemButton>
               ))}
             </List>
@@ -224,8 +256,9 @@ function NavigationList({
           px: 2,
           py: 1.25,
           color: "text.secondary",
-          fontWeight: 700,
+          fontWeight: 800,
           letterSpacing: "0.12em",
+          fontSize: "0.68rem",
         }}
       >
         Production
@@ -234,12 +267,24 @@ function NavigationList({
       <ListItemButton
         onClick={onToggleLivestock}
         selected={livestockActive}
-        sx={{ px: 1.5, py: 1, borderRadius: 2 }}
+        sx={{
+          px: 1.5,
+          py: 0.9,
+          borderRadius: 2,
+          color: livestockActive ? "primary.main" : "text.primary",
+          "&.Mui-selected": {
+            backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+            color: "primary.main",
+          },
+          "&:hover": {
+            backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.04),
+          },
+        }}
       >
         <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
           <PetsIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText primary="Livestock" />
+        <ListItemText primary="Livestock" sx={{ '& .MuiTypography-root': { fontWeight: livestockActive ? 700 : 500 } }} />
         {isLivestockExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
       </ListItemButton>
       <Collapse in={isLivestockExpanded} timeout="auto" unmountOnExit>
@@ -249,9 +294,17 @@ function NavigationList({
               key={item.href}
               selected={pathname === item.href}
               onClick={() => onNavigate(item.href)}
-              sx={{ px: 1.5, py: 0.8, borderRadius: 2 }}
+              sx={{
+                px: 1.5,
+                py: 0.75,
+                borderRadius: 2,
+                "&.Mui-selected": {
+                  backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                  color: "primary.main",
+                },
+              }}
             >
-              <ListItemText primary={item.label} sx={{ ml: 0.5 }} />
+              <ListItemText primary={item.label} sx={{ ml: 0.5, '& .MuiTypography-root': { fontWeight: pathname === item.href ? 700 : 500 } }} />
             </ListItemButton>
           ))}
         </List>
@@ -260,12 +313,24 @@ function NavigationList({
       <ListItemButton
         onClick={onToggleProduction}
         selected={productionActive}
-        sx={{ px: 1.5, py: 1, borderRadius: 2 }}
+        sx={{
+          px: 1.5,
+          py: 0.9,
+          borderRadius: 2,
+          color: productionActive ? "primary.main" : "text.primary",
+          "&.Mui-selected": {
+            backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+            color: "primary.main",
+          },
+          "&:hover": {
+            backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.04),
+          },
+        }}
       >
         <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
           <EggAltIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText primary="Production" />
+        <ListItemText primary="Production" sx={{ '& .MuiTypography-root': { fontWeight: productionActive ? 700 : 500 } }} />
         {isProductionExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
       </ListItemButton>
       <Collapse in={isProductionExpanded} timeout="auto" unmountOnExit>
@@ -275,9 +340,17 @@ function NavigationList({
               key={item.href}
               selected={pathname === item.href}
               onClick={() => onNavigate(item.href)}
-              sx={{ px: 1.5, py: 0.8, borderRadius: 2 }}
+              sx={{
+                px: 1.5,
+                py: 0.75,
+                borderRadius: 2,
+                "&.Mui-selected": {
+                  backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                  color: "primary.main",
+                },
+              }}
             >
-              <ListItemText primary={item.label} sx={{ ml: 0.5 }} />
+              <ListItemText primary={item.label} sx={{ ml: 0.5, '& .MuiTypography-root': { fontWeight: pathname === item.href ? 700 : 500 } }} />
             </ListItemButton>
           ))}
         </List>
@@ -289,12 +362,24 @@ function NavigationList({
           onToggleFinance();
         }}
         selected={isFinancePath(pathname)}
-        sx={{ px: 1.5, py: 1, borderRadius: 2 }}
+        sx={{
+          px: 1.5,
+          py: 0.9,
+          borderRadius: 2,
+          color: isFinancePath(pathname) ? "primary.main" : "text.primary",
+          "&.Mui-selected": {
+            backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+            color: "primary.main",
+          },
+          "&:hover": {
+            backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.04),
+          },
+        }}
       >
         <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
           <ReceiptLongIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText primary="Finance" />
+        <ListItemText primary="Finance" sx={{ '& .MuiTypography-root': { fontWeight: isFinancePath(pathname) ? 700 : 500 } }} />
         {isFinanceExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
       </ListItemButton>
 
@@ -305,9 +390,17 @@ function NavigationList({
               key={item.href}
               selected={pathname === item.href}
               onClick={() => onNavigate(item.href)}
-              sx={{ px: 1.5, py: 0.8, borderRadius: 2 }}
+              sx={{
+                px: 1.5,
+                py: 0.75,
+                borderRadius: 2,
+                "&.Mui-selected": {
+                  backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                  color: "primary.main",
+                },
+              }}
             >
-              <ListItemText primary={item.label} sx={{ ml: 0.5 }} />
+              <ListItemText primary={item.label} sx={{ ml: 0.5, '& .MuiTypography-root': { fontWeight: pathname === item.href ? 700 : 500 } }} />
             </ListItemButton>
           ))}
         </List>
@@ -319,7 +412,7 @@ function NavigationList({
         onClick={onLogout}
         sx={{
           px: 1.5,
-          py: 1,
+          py: 0.9,
           borderRadius: 2,
           color: "error.main",
           "&:hover": {
@@ -330,7 +423,7 @@ function NavigationList({
         <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
           <LogoutOutlinedIcon fontSize="small" />
         </ListItemIcon>
-        <ListItemText primary="Logout" />
+        <ListItemText primary="Logout" sx={{ '& .MuiTypography-root': { fontWeight: 600 } }} />
       </ListItemButton>
     </List>
   );
@@ -356,6 +449,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     [activeTenantId, tenants]
   );
 
+  const visibleLivestockItems = useMemo(() => {
+    const permissions = activeTenant?.permissions ?? [];
+    const canViewPurchases = hasPermission(permissions, "purchases", "view") || hasPermission(permissions, "purchases", "create");
+
+    return livestockItems.filter((item) => {
+      if (item.href === "/purchases" || item.href === "/feed-purchases") {
+        return canViewPurchases;
+      }
+
+      return true;
+    });
+  }, [activeTenant?.permissions]);
+
   const isFarmManagementVisible = activeTenant?.role.name === ownerRoleName;
   const farmManagementExpanded = isFarmManagementVisible && (farmManagementExpandedOverride ?? isFarmManagementRoute);
   const livestockExpanded = livestockExpandedOverride ?? isLivestockRoute;
@@ -369,6 +475,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const currentPageTitle = routeLabelMap.get(pathname) || "NexlogsFlock";
   const initials = `${user?.first_name?.[0] ?? ""}${user?.last_name?.[0] ?? ""}`.toUpperCase() || "NF";
+  const currentUserName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "User";
+  const currentUserRole = activeTenant?.role?.name || "Account";
 
   const handleLogout = async () => {
     await logoutUser();
@@ -378,27 +486,55 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const drawerContent = (
     <Stack sx={{ px: 1.5, py: 1.5, gap: 1.5 }}>
       <Stack direction="row" spacing={1.5} sx={{ px: 1.5, py: 0.75, alignItems: "center" }}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: 2.5,
-            background: "linear-gradient(135deg, #1E88E5 0%, #BA68C8 100%)",
-            display: "grid",
-            placeItems: "center",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: 18,
-            boxShadow: "0 10px 20px rgba(30, 136, 229, 0.18)",
-          }}
-        >
-          N
-        </Box>
-        <Stack>
+        {activeTenant?.logo ? (
+          <Box
+            component="img"
+            src={activeTenant.logo}
+            alt={activeTenantName}
+            sx={{
+              width: 38,
+              height: 38,
+              borderRadius: 2.5,
+              objectFit: "cover",
+              border: "1px solid",
+              borderColor: "divider",
+              backgroundColor: "background.paper",
+              boxShadow: "0 10px 20px rgba(30, 136, 229, 0.12)",
+            }}
+          />
+        ) : (
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+              borderRadius: 2.5,
+              background: "linear-gradient(135deg, #1E88E5 0%, #BA68C8 100%)",
+              display: "grid",
+              placeItems: "center",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 18,
+              boxShadow: "0 10px 20px rgba(30, 136, 229, 0.18)",
+            }}
+          >
+            {activeTenantName.charAt(0)?.toUpperCase() || "N"}
+          </Box>
+        )}
+        <Stack sx={{ minWidth: 0 }}>
           <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2, letterSpacing: "-0.02em" }}>
             NexlogsFlock
           </Typography>
-          <Typography variant="caption" sx={{ color: "text.secondary", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
             {activeTenantName}
           </Typography>
         </Stack>
@@ -408,6 +544,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <NavigationList
         pathname={pathname}
+        livestockItems={visibleLivestockItems}
         isFarmManagementVisible={isFarmManagementVisible}
         isFarmManagementExpanded={farmManagementExpanded}
         isLivestockExpanded={livestockExpanded}
@@ -466,62 +603,84 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </Typography>
           </Box>
 
-          <Select
-            size="small"
-            displayEmpty
-            value={activeTenantId || ""}
+          <Box
             sx={{
-              minWidth: { xs: 120, md: 220 },
-              maxWidth: { xs: 170, md: 240 },
-              backgroundColor: "background.paper",
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              px: 1,
+              py: 0.5,
               borderRadius: 2,
+              backgroundColor: "background.paper",
               border: "1px solid",
               borderColor: "divider",
-              "& .MuiOutlinedInput-notchedOutline": { border: "none" },
-              "& .MuiSelect-select": { py: 1.15, fontSize: { xs: "0.75rem", md: "0.875rem" } },
-            }}
-            onChange={(event) => {
-              const tenantId = event.target.value;
-              if (tenantId) {
-                setActiveTenantId(tenantId);
-              }
             }}
           >
-            {tenants.map((organization) => (
-              <MenuItem key={organization.id} value={organization.id}>
-                {organization.name}
-              </MenuItem>
-            ))}
-          </Select>
-
-          <Stack direction="row" spacing={1.25} sx={{ ml: 0.5, alignItems: "center" }}>
-            <Chip
-              label={user?.email || "Account"}
-              variant="outlined"
+            <Box
+              component="span"
               sx={{
-                backgroundColor: "background.paper",
-                borderColor: "divider",
-                color: "text.primary",
-                fontWeight: 600,
-                maxWidth: { xs: 0, md: 220 },
-                overflow: "hidden",
-                display: { xs: "none", md: "inline-flex" },
-                px: 0.5,
+                width: 24,
+                height: 24,
+                borderRadius: 1.5,
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg, #1E88E5 0%, #BA68C8 100%)",
+                color: "#fff",
+                fontSize: 10,
+                fontWeight: 800,
               }}
-            />
+            >
+              {activeTenantName.charAt(0)?.toUpperCase() || "N"}
+            </Box>
+            <Select
+              size="small"
+              displayEmpty
+              value={activeTenantId || ""}
+              sx={{
+                minWidth: { xs: 120, md: 200 },
+                maxWidth: { xs: 170, md: 220 },
+                backgroundColor: "transparent",
+                borderRadius: 1.5,
+                "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                "& .MuiSelect-select": { py: 1, fontSize: { xs: "0.75rem", md: "0.875rem" }, fontWeight: 600 },
+              }}
+              onChange={(event) => {
+                const tenantId = event.target.value;
+                if (tenantId) {
+                  setActiveTenantId(tenantId);
+                }
+              }}
+            >
+              {tenants.map((organization) => (
+                <MenuItem key={organization.id} value={organization.id}>
+                  {organization.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </Box>
+
+          <Stack direction="row" spacing={1.25} sx={{ ml: 0.5, alignItems: "center", px: 0.5, py: 0.25, borderRadius: 2, backgroundColor: "background.paper", border: "1px solid", borderColor: "divider" }}>
             <Avatar
               sx={{
-                width: 36,
-                height: 36,
+                width: 34,
+                height: 34,
                 background: "linear-gradient(135deg, #1E88E5 0%, #BA68C8 100%)",
                 color: "primary.contrastText",
                 fontWeight: 700,
-                fontSize: 13,
+                fontSize: 12,
                 boxShadow: "0 10px 20px rgba(30, 136, 229, 0.18)",
               }}
             >
               {initials}
             </Avatar>
+            <Stack sx={{ minWidth: 0 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2, whiteSpace: "nowrap" }}>
+                {currentUserName}
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary", lineHeight: 1.2, whiteSpace: "nowrap" }}>
+                {currentUserRole}
+              </Typography>
+            </Stack>
           </Stack>
         </Toolbar>
       </AppBar>

@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from apps.core.authtntuser.permissions.drf_permissions import HasModulePermission
 from apps.core.tenant.permissions import HasTenantAccess
 from .models import Expense, ExpenseCategory
 from .serializers import ExpenseCategorySerializer, ExpenseSerializer
@@ -12,8 +13,20 @@ from .serializers import ExpenseCategorySerializer, ExpenseSerializer
 
 class ExpenseCategoryViewSet(ModelViewSet):
     serializer_class = ExpenseCategorySerializer
-    permission_classes = (IsAuthenticated, HasTenantAccess)
+    module = "finance"
+    permission_classes = (IsAuthenticated, HasTenantAccess, HasModulePermission)
     lookup_field = "id"
+
+    def get_permissions(self):
+        self.permission_action = {
+            "list": "view",
+            "retrieve": "view",
+            "create": "create",
+            "update": "update",
+            "partial_update": "update",
+            "destroy": "delete",
+        }.get(self.action, "view")
+        return super().get_permissions()
 
     def get_queryset(self):
         return ExpenseCategory.objects.filter(is_active=True).order_by("name")
@@ -24,8 +37,20 @@ class ExpenseCategoryViewSet(ModelViewSet):
 
 class ExpenseViewSet(ModelViewSet):
     serializer_class = ExpenseSerializer
-    permission_classes = (IsAuthenticated, HasTenantAccess)
+    module = "finance"
+    permission_classes = (IsAuthenticated, HasTenantAccess, HasModulePermission)
     lookup_field = "id"
+
+    def get_permissions(self):
+        self.permission_action = {
+            "list": "view",
+            "retrieve": "view",
+            "create": "create",
+            "update": "update",
+            "partial_update": "update",
+            "destroy": "delete",
+        }.get(self.action, "view")
+        return super().get_permissions()
 
     def get_queryset(self):
         qs = (
