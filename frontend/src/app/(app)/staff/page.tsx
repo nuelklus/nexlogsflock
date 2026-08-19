@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   FormControl,
-  Grid,
   InputLabel,
   MenuItem,
   Paper,
@@ -177,8 +176,14 @@ export default function StaffPage() {
 
       <Paper sx={{ p: { xs: 2, md: 3 }, border: "1px solid", borderColor: "divider" }}>
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ display: "grid", gap: 2.5 }}>
-          <Grid container spacing={2}>
-            <Grid xs={12} sm={4}>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))" },
+              gap: 2,
+            }}
+          >
+            <Box>
               <TextField
                 label="First name"
                 fullWidth
@@ -187,8 +192,8 @@ export default function StaffPage() {
                 required
                 disabled={isSubmitting || !isOwner || !activeTenantId}
               />
-            </Grid>
-            <Grid xs={12} sm={4}>
+            </Box>
+            <Box>
               <TextField
                 label="Last name"
                 fullWidth
@@ -197,8 +202,8 @@ export default function StaffPage() {
                 required
                 disabled={isSubmitting || !isOwner || !activeTenantId}
               />
-            </Grid>
-            <Grid xs={12} sm={4}>
+            </Box>
+            <Box>
               <TextField
                 label="Email address"
                 type="email"
@@ -208,8 +213,8 @@ export default function StaffPage() {
                 required
                 disabled={isSubmitting || !isOwner || !activeTenantId}
               />
-            </Grid>
-            <Grid xs={12} sm={4}>
+            </Box>
+            <Box>
               <TextField
                 label="Phone number"
                 fullWidth
@@ -218,8 +223,8 @@ export default function StaffPage() {
                 required
                 disabled={isSubmitting || !isOwner || !activeTenantId}
               />
-            </Grid>
-            <Grid xs={12} sm={4}>
+            </Box>
+            <Box>
               <FormControl fullWidth disabled={isSubmitting || !isOwner || !activeTenantId}>
                 <InputLabel id="staff-type-label">Staff type</InputLabel>
                 <Select
@@ -232,8 +237,8 @@ export default function StaffPage() {
                   <MenuItem value="farm_attendant">Farm Attendant</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid xs={12} sm={4}>
+            </Box>
+            <Box>
               <FormControl
                 fullWidth
                 disabled={isSubmitting || !isOwner || !activeTenantId || loadingBranches}
@@ -245,7 +250,7 @@ export default function StaffPage() {
                   label="Branch"
                   value={form.branch_id}
                   onChange={handleFieldChange("branch_id")}
-                  sx={{ minHeight: 56 }}
+                  sx={{ minHeight: 56, minWidth: 220 }}
                 >
                   {branches.length === 0 ? (
                     <MenuItem value="" disabled>
@@ -260,8 +265,8 @@ export default function StaffPage() {
                   )}
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid xs={12} sm={6}>
+            </Box>
+            <Box sx={{ gridColumn: { xs: "span 1", sm: "span 1", md: "span 2" } }}>
               <TextField
                 label="Password"
                 type="password"
@@ -271,8 +276,8 @@ export default function StaffPage() {
                 required
                 disabled={isSubmitting || !isOwner || !activeTenantId}
               />
-            </Grid>
-            <Grid xs={12} sm={6}>
+            </Box>
+            <Box sx={{ gridColumn: { xs: "span 1", sm: "span 1", md: "span 1" } }}>
               <TextField
                 label="Confirm password"
                 type="password"
@@ -282,8 +287,8 @@ export default function StaffPage() {
                 required
                 disabled={isSubmitting || !isOwner || !activeTenantId}
               />
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <Button
