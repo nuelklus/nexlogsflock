@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Tenant, TenantUser, TenantRole
+from .models import Tenant, TenantUser, TenantRole, SubscriptionPlan, TenantSubscription, SubscriptionHistory
 from apps.core.users.models import User
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -13,6 +13,7 @@ class TenantSerializer(serializers.ModelSerializer):
             "slug",
             "description",
             "subscription_plan",
+            "subscription_status",
             "logo",
             "primary_color",
             "custom_domain",
@@ -29,6 +30,118 @@ class TenantSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubscriptionPlan
+        fields = (
+            "id",
+            "code",
+            "name",
+            "description",
+            "amount",
+            "billing_cycle",
+            "max_users",
+            "max_branches",
+            "features",
+            "is_active",
+        )
+
+
+class SubscriptionHistorySerializer(serializers.ModelSerializer):
+    changed_by_email = serializers.CharField(source="changed_by.email", read_only=True, allow_null=True)
+
+    class Meta:
+        model = SubscriptionHistory
+        fields = (
+            "id",
+            "previous_status",
+            "new_status",
+            "payment_reference",
+            "notes",
+            "changed_by_email",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "created_at",
+        )
+
+
+class TenantSubscriptionSerializer(serializers.ModelSerializer):
+    plan = SubscriptionPlanSerializer(read_only=True)
+    tenant_id = serializers.UUIDField(source="tenant.id", read_only=True)
+    tenant_name = serializers.CharField(source="tenant.name", read_only=True)
+    billing_history = SubscriptionHistorySerializer(many=True, read_only=True, source="history")
+
+    class Meta:
+        model = TenantSubscription
+        fields = (
+            "id",
+            "tenant_id",
+            "tenant_name",
+            "plan",
+            "status",
+            "billing_cycle",
+            "amount",
+            "next_billing_date",
+            "payment_reference",
+            "notes",
+            "billing_history",
+            "started_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "plan",
+            "tenant_id",
+            "tenant_name",
+            "billing_history",
+            "started_at",
+            "updated_at",
+        )
+
+
+class TenantSubscriptionUpdateSerializer(serializers.ModelSerializer):
+    plan_code = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = TenantSubscription
+        fields = (
+            "plan_code",
+            "billing_cycle",
+            "payment_reference",
+            "notes",
+        )
+
+    def validate_plan_code(self, value):
+        try:
+            plan = SubscriptionPlan.objects.get(code=value, is_active=True)
+        except SubscriptionPlan.DoesNotExist:
+            raise serializers.ValidationError("This subscription plan does not exist.")
+        return plan
+
+    def update(self, instance, validated_data):
+        plan = validated_data.pop("plan_code")
+        cycle = validated_data.get("billing_cycle", instance.billing_cycle)
+        payment_reference = validated_data.get("payment_reference", "")
+        notes = validated_data.get("notes", "")
+
+        instance.plan = plan
+        instance.billing_cycle = cycle
+        instance.amount = plan.amount if cycle == "monthly" else plan.amount
+        instance.payment_reference = payment_reference
+        instance.notes = notes
+        instance.status = "pending_manual_payment"
+        instance.next_billing_date = instance.next_billing_date or None
+        instance.save()
+
+        tenant = instance.tenant
+        tenant.subscription_plan = plan.code
+        tenant.subscription_status = instance.status
+        tenant.save(update_fields=["subscription_plan", "subscription_status"])
+        return instance
+
 
 class TenantUserSerializer(serializers.ModelSerializer):
 
@@ -108,7 +221,6 @@ class TenantMembershipCreateSerializer(serializers.ModelSerializer):
         )
 
         tenant = self.context["tenant"]
-
 
         tenant_user = TenantUser.objects.create(
             user=user,

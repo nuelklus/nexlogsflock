@@ -86,6 +86,8 @@ export default function EggCollectionPage() {
   );
   const [isDeleting, setIsDeleting] = useState(false);
   const [filters, setFilters] = useState({
+    dateFrom: "",
+    dateTo: "",
     branch: "",
     house: "",
     batch: "",
@@ -211,6 +213,20 @@ export default function EggCollectionPage() {
   const filteredProductions = useMemo(
     () =>
       productions.filter((record) => {
+        if (
+          filters.dateFrom &&
+          record.production_date < filters.dateFrom
+        ) {
+          return false;
+        }
+
+        if (
+          filters.dateTo &&
+          record.production_date > filters.dateTo
+        ) {
+          return false;
+        }
+
         if (filters.branch && record.branch !== filters.branch) {
           return false;
         }
@@ -225,7 +241,14 @@ export default function EggCollectionPage() {
 
         return true;
       }),
-    [filters.batch, filters.branch, filters.house, productions]
+    [
+      filters.batch,
+      filters.branch,
+      filters.dateFrom,
+      filters.dateTo,
+      filters.house,
+      productions,
+    ]
   );
 
   const selectedFilterBatch = useMemo(
@@ -434,14 +457,20 @@ export default function EggCollectionPage() {
                     Filters
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Narrow egg collection records by branch, house, or batch.
+                    Narrow records by collection date, branch, house, or batch.
                   </Typography>
                 </Box>
-                {filters.branch || filters.house || filters.batch ? (
+                {filters.dateFrom ||
+                filters.dateTo ||
+                filters.branch ||
+                filters.house ||
+                filters.batch ? (
                   <Button
                     variant="text"
                     onClick={() =>
                       setFilters({
+                        dateFrom: "",
+                        dateTo: "",
                         branch: "",
                         house: "",
                         batch: "",
@@ -459,10 +488,45 @@ export default function EggCollectionPage() {
                   gap: 2,
                   gridTemplateColumns: {
                     xs: "1fr",
-                    md: "repeat(3, minmax(0, 1fr))",
+                    md: "repeat(2, minmax(0, 1fr))",
+                    lg: "repeat(5, minmax(0, 1fr))",
                   },
                 }}
               >
+                <TextField
+                  label="From date"
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(event) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      dateFrom: event.target.value,
+                    }))
+                  }
+                  fullWidth
+                  size="small"
+                  slotProps={{
+                    inputLabel: { shrink: true },
+                    htmlInput: { max: filters.dateTo || undefined },
+                  }}
+                />
+                <TextField
+                  label="To date"
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(event) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      dateTo: event.target.value,
+                    }))
+                  }
+                  fullWidth
+                  size="small"
+                  slotProps={{
+                    inputLabel: { shrink: true },
+                    htmlInput: { min: filters.dateFrom || undefined },
+                  }}
+                />
                 <TextField
                   label="Filter by Branch"
                   select
@@ -711,6 +775,8 @@ export default function EggCollectionPage() {
                       onClick: () =>
                         productions.length > 0
                           ? setFilters({
+                              dateFrom: "",
+                              dateTo: "",
                               branch: "",
                               house: "",
                               batch: "",

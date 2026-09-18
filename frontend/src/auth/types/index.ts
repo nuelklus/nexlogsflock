@@ -37,6 +37,8 @@ export interface TenantInfo {
   id: string;
   name: string;
   slug: string;
+  subscription_plan?: string;
+  subscription_status?: string;
 }
 
 export interface OrganizationRole {
@@ -51,6 +53,7 @@ export interface Organization {
   name: string;
   slug: string;
   subscription_plan: string;
+  subscription_status: string;
   logo: string | null;
   primary_color: string;
   timezone: string;

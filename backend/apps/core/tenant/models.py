@@ -36,6 +36,19 @@ class Tenant(models.Model):
         default="starter"
     )
 
+    subscription_status = models.CharField(
+        max_length=30,
+        choices=[
+            ("trial", "Trial"),
+            ("active", "Active"),
+            ("pending_manual_payment", "Pending Manual Payment"),
+            ("past_due", "Past Due"),
+            ("cancelled", "Cancelled"),
+        ],
+        default="trial",
+        help_text="Manual subscription lifecycle for SaaS billing.",
+    )
+
     # Branding / White label
     logo = models.ImageField(
         upload_to="organizations/logos/",
@@ -87,6 +100,119 @@ class Tenant(models.Model):
     def __str__(self):
         return self.name
 
+
+class SubscriptionPlan(models.Model):
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    billing_cycle = models.CharField(
+        max_length=20,
+        choices=[("monthly", "Monthly"), ("annual", "Annual")],
+        default="monthly",
+    )
+    max_users = models.PositiveIntegerField(default=5)
+    max_branches = models.PositiveIntegerField(default=1)
+    features = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_subscription_plan"
+        ordering = ["amount"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class TenantSubscription(models.Model):
+    tenant = models.OneToOneField(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name="subscription",
+    )
+    plan = models.ForeignKey(
+        SubscriptionPlan,
+        on_delete=models.PROTECT,
+        related_name="tenant_subscriptions",
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=[
+            ("trial", "Trial"),
+            ("active", "Active"),
+            ("pending_manual_payment", "Pending Manual Payment"),
+            ("past_due", "Past Due"),
+            ("cancelled", "Cancelled"),
+        ],
+        default="trial",
+    )
+    billing_cycle = models.CharField(
+        max_length=20,
+        choices=[("monthly", "Monthly"), ("annual", "Annual")],
+        default="monthly",
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    next_billing_date = models.DateField(null=True, blank=True)
+    payment_reference = models.CharField(max_length=255, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    started_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_tenant_subscription"
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.tenant.name} - {self.plan.name}"
+
+
+class SubscriptionHistory(models.Model):
+    subscription = models.ForeignKey(
+        TenantSubscription,
+        on_delete=models.CASCADE,
+        related_name="history",
+    )
+    previous_status = models.CharField(
+        max_length=30,
+        choices=[
+            ("trial", "Trial"),
+            ("active", "Active"),
+            ("pending_manual_payment", "Pending Manual Payment"),
+            ("past_due", "Past Due"),
+            ("cancelled", "Cancelled"),
+        ],
+        blank=True,
+        null=True,
+    )
+    new_status = models.CharField(
+        max_length=30,
+        choices=[
+            ("trial", "Trial"),
+            ("active", "Active"),
+            ("pending_manual_payment", "Pending Manual Payment"),
+            ("past_due", "Past Due"),
+            ("cancelled", "Cancelled"),
+        ],
+    )
+    payment_reference = models.CharField(max_length=255, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    changed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subscription_history_updates",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_subscription_history"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.subscription.tenant.name}: {self.previous_status} -> {self.new_status}"
 
 
 class TenantRole(models.TextChoices):

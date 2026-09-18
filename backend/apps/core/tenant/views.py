@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -7,12 +9,15 @@ from rest_framework.views import APIView
 
 from apps.core.users.models import User
 
-from .models import Tenant, TenantUser, TenantRole
-from .permissions import HasOrganizationRole, IsOrganizationMember, IsOrganizationOwner
+from .models import Tenant, TenantUser, TenantRole, SubscriptionPlan, TenantSubscription, SubscriptionHistory
+from .permissions import HasOrganizationRole, HasTenantAccess, IsOrganizationMember, IsOrganizationOwner
 from .serializers import (
+    SubscriptionPlanSerializer,
     TenantMembershipCreateSerializer,
     TenantMembershipUpdateSerializer,
     TenantSerializer,
+    TenantSubscriptionSerializer,
+    TenantSubscriptionUpdateSerializer,
     TenantUserSerializer,
     UserTenantsSerializer,
 )
@@ -112,3 +117,147 @@ class TenantMemberDetailView(APIView):
         
         member.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SubscriptionPlanListView(APIView):
+    permission_classes = [IsAuthenticated, HasTenantAccess]
+
+    def get(self, request):
+        plans = SubscriptionPlan.objects.filter(is_active=True)
+        serializer = SubscriptionPlanSerializer(plans, many=True)
+        return Response(serializer.data)
+
+
+class CurrentTenantSubscriptionView(APIView):
+    permission_classes = [IsAuthenticated, HasTenantAccess]
+
+    def get(self, request):
+        tenant = request.tenant
+        subscription = (
+           TenantSubscription.objects.select_related("plan", "tenant")
+           .filter(tenant=tenant)
+           .first()
+        )
+
+        if subscription is None:
+           default_plan = SubscriptionPlan.objects.filter(is_active=True).order_by("amount").first()
+           if default_plan is None:
+               return Response({"detail": "No subscription plan is available yet."}, status=status.HTTP_404_NOT_FOUND)
+
+           subscription = TenantSubscription.objects.create(
+               tenant=tenant,
+               plan=default_plan,
+               billing_cycle="monthly",
+               amount=default_plan.amount,
+               status="trial",
+               next_billing_date=date.today() + timedelta(days=30),
+           )
+           SubscriptionHistory.objects.create(
+               subscription=subscription,
+               previous_status=None,
+               new_status="trial",
+               payment_reference="",
+               notes="Tenant started with the trial plan.",
+               changed_by=request.user,
+           )
+           tenant.subscription_plan = default_plan.code
+           tenant.subscription_status = subscription.status
+           tenant.save(update_fields=["subscription_plan", "subscription_status"])
+
+        return Response(TenantSubscriptionSerializer(subscription).data)
+
+
+class UpdateTenantSubscriptionView(APIView):
+    permission_classes = [IsAuthenticated, HasTenantAccess]
+
+    def post(self, request):
+        tenant = request.tenant
+        membership = tenant.memberships.filter(user=request.user).first()
+        if membership is None or membership.role not in [TenantRole.OWNER, TenantRole.ADMIN]:
+           return Response({"detail": "Only an owner or admin can manage the subscription."}, status=status.HTTP_403_FORBIDDEN)
+
+        plan_code = request.data.get("plan_code")
+        if not plan_code:
+           return Response({"detail": "plan_code is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+           plan = SubscriptionPlan.objects.get(code=plan_code, is_active=True)
+        except SubscriptionPlan.DoesNotExist:
+           return Response({"detail": "This subscription plan does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        billing_cycle = request.data.get("billing_cycle", "monthly")
+        payment_reference = request.data.get("payment_reference", "")
+        notes = request.data.get("notes", "")
+
+        subscription, created = TenantSubscription.objects.get_or_create(
+           tenant=tenant,
+           defaults={
+               "plan": plan,
+               "billing_cycle": billing_cycle,
+               "amount": plan.amount,
+               "status": "pending_manual_payment",
+               "next_billing_date": date.today() + timedelta(days=30),
+               "payment_reference": payment_reference,
+               "notes": notes,
+           },
+        )
+
+        if not created:
+           subscription.plan = plan
+           subscription.billing_cycle = billing_cycle
+           subscription.amount = plan.amount
+           subscription.payment_reference = payment_reference
+           subscription.notes = notes
+           subscription.status = "pending_manual_payment"
+           subscription.next_billing_date = date.today() + timedelta(days=30)
+           subscription.save()
+
+        tenant.subscription_plan = plan.code
+        tenant.subscription_status = subscription.status
+        tenant.save(update_fields=["subscription_plan", "subscription_status"])
+
+        return Response(TenantSubscriptionSerializer(subscription).data, status=status.HTTP_200_OK)
+
+
+class ConfirmTenantSubscriptionPaymentView(APIView):
+    permission_classes = [IsAuthenticated, HasTenantAccess]
+
+    def post(self, request):
+        tenant = request.tenant
+        membership = tenant.memberships.filter(user=request.user).first()
+        if membership is None or membership.role not in [TenantRole.OWNER, TenantRole.ADMIN]:
+           return Response({"detail": "Only an owner or admin can confirm a subscription payment."}, status=status.HTTP_403_FORBIDDEN)
+
+        subscription = TenantSubscription.objects.select_related("plan", "tenant").filter(tenant=tenant).first()
+        if subscription is None:
+           return Response({"detail": "No subscription record exists for this tenant."}, status=status.HTTP_404_NOT_FOUND)
+
+        status_value = request.data.get("status", "active")
+        allowed_statuses = {"active", "pending_manual_payment", "past_due", "cancelled"}
+        if status_value not in allowed_statuses:
+           return Response({"detail": "Invalid subscription status."}, status=status.HTTP_400_BAD_REQUEST)
+
+        payment_reference = request.data.get("payment_reference") or subscription.payment_reference or "manual-payment"
+        notes = request.data.get("notes") or subscription.notes or "Admin confirmed payment manually."
+
+        previous_status = subscription.status
+        subscription.status = status_value
+        subscription.payment_reference = payment_reference
+        subscription.notes = notes
+        subscription.next_billing_date = date.today() + timedelta(days=30)
+        subscription.save()
+
+        SubscriptionHistory.objects.create(
+           subscription=subscription,
+           previous_status=previous_status,
+           new_status=status_value,
+           payment_reference=payment_reference,
+           notes=notes,
+           changed_by=request.user,
+        )
+
+        tenant.subscription_plan = subscription.plan.code
+        tenant.subscription_status = status_value
+        tenant.save(update_fields=["subscription_plan", "subscription_status"])
+
+        return Response(TenantSubscriptionSerializer(subscription).data, status=status.HTTP_200_OK)

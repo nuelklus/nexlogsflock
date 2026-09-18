@@ -42,6 +42,7 @@ interface NavigationItem {
 const primaryNavigationItems: NavigationItem[] = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Daily Activities", href: "/daily-activities" },
+  { label: "Subscription", href: "/subscription" },
 ];
 
 const farmManagementItems: NavigationItem[] = [
