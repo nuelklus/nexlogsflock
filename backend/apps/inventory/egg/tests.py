@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from django.test import TestCase
+from rest_framework import serializers
 
 from apps.core.tenant.models import Tenant
 from apps.core.users.models import User
@@ -13,6 +14,7 @@ from apps.organization.branch.models import Branch
 from apps.organization.house.models import House
 from apps.production.egg.models import EggProduction
 from apps.production.egg.serializers import EggProductionSerializer
+from apps.production.egg.services import remove_egg_from_inventory
 
 
 class EggInventoryWorkflowTests(TestCase):
@@ -468,3 +470,36 @@ class EggInventoryWorkflowTests(TestCase):
         )
         self.assertIn(EggStockMovement.MOVEMENT_PRODUCTION, movement_types)
         self.assertIn(EggStockMovement.MOVEMENT_INVOICE_SALE, movement_types)
+
+    def test_remove_production_reverses_inventory_outside_caller_transaction(
+        self,
+    ):
+        production = self.create_production(large_eggs=100)
+
+        remove_egg_from_inventory(
+            production,
+            user=self.user,
+        )
+
+        inventory = self.get_inventory(EggInventory.GRADE_LARGE)
+        self.assertEqual(inventory.quantity, 0)
+        self.assertEqual(inventory.available_quantity, 0)
+
+    def test_remove_production_explains_when_inventory_is_not_available(
+        self,
+    ):
+        production = self.create_production(large_eggs=100)
+        inventory = self.get_inventory(EggInventory.GRADE_LARGE)
+        inventory.available_quantity = 0
+        inventory.save(update_fields=["available_quantity"])
+
+        with self.assertRaises(serializers.ValidationError) as context:
+            remove_egg_from_inventory(
+                production,
+                user=self.user,
+            )
+
+        message = str(context.exception.detail["detail"])
+        self.assertIn("cannot be deleted", message)
+        self.assertIn("Large eggs", message)
+        self.assertIn("Reverse or cancel the related egg sale first", message)

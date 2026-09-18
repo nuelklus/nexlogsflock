@@ -1,5 +1,8 @@
 from decimal import Decimal
 
+from django.db import transaction
+from rest_framework import serializers
+
 from apps.inventory.egg.models import EggInventory, EggStockMovement
 from apps.inventory.egg.services import apply_inventory_delta
 
@@ -146,6 +149,7 @@ def update_egg_inventory(
         )
 
 
+@transaction.atomic
 def remove_egg_from_inventory(
     production,
     *,
@@ -157,15 +161,40 @@ def remove_egg_from_inventory(
         if quantity <= 0:
             continue
 
-        apply_inventory_delta(
-            tenant=production.tenant,
-            branch=production.branch,
-            grade=grade,
-            quantity_delta=-quantity,
-            movement_type=EggStockMovement.MOVEMENT_PRODUCTION_REVERSAL,
-            reference_type="egg_production",
-            reference_id=production.id,
-            movement_date=production.production_date,
-            user=user,
-            notes="Egg production deleted.",
-        )
+        try:
+            apply_inventory_delta(
+                tenant=production.tenant,
+                branch=production.branch,
+                grade=grade,
+                quantity_delta=-quantity,
+                movement_type=EggStockMovement.MOVEMENT_PRODUCTION_REVERSAL,
+                reference_type="egg_production",
+                reference_id=production.id,
+                movement_date=production.production_date,
+                user=user,
+                notes="Egg production deleted.",
+            )
+        except serializers.ValidationError as error:
+            available = (
+                error.detail.get("quantity")
+                if isinstance(error.detail, dict)
+                else None
+            )
+            available_message = (
+                available[0]
+                if isinstance(available, list)
+                else available
+            )
+            raise serializers.ValidationError(
+                {
+                    "detail": (
+                        "This collection cannot be deleted because "
+                        f"{grade.title()} eggs from it are no "
+                        "longer fully available in inventory. "
+                        f"The collection requires {quantity} pieces. "
+                        f"{available_message or 'Some pieces may have been sold.'} "
+                        "Reverse or cancel the related egg sale first, "
+                        "then try deleting the collection again."
+                    )
+                }
+            ) from error
